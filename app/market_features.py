@@ -15,11 +15,15 @@ class MarketFeatures:
         self.latest_vbd: float = 0.0
         self.latest_spread: float = 0.0
         self.latest_spread_z: float = 0.0
+        self.latest_volatility: float = 0.0
         # rolling per-bar series
         self._obis: deque[float] = deque(maxlen=window)
         self._vbds: deque[float] = deque(maxlen=window)
         self._spreads: deque[float] = deque(maxlen=window)
         self._returns: deque[float] = deque(maxlen=window)
+        # tick-level series
+        self.price_window: deque[float] = deque(maxlen=window)
+        self._tick_returns: deque[float] = deque(maxlen=window)
         # aggregated metrics
         self.obi: float = 0.0
         self.vbd: float = 0.0
@@ -50,6 +54,20 @@ class MarketFeatures:
             stdev = statistics.stdev(self._spreads)
             self.latest_spread_z = 0.0 if stdev == 0 else (spread - mean) / stdev
         return self.latest_spread_z
+
+    def update_volatility(self, price: float) -> float:
+        """Update intra-bar volatility estimate using tick prices."""
+        if self.price_window:
+            last_price = self.price_window[-1]
+            if last_price > 0 and price > 0:
+                ret = math.log(price / last_price)
+                self._tick_returns.append(ret)
+        self.price_window.append(price)
+        if len(self._tick_returns) > 1:
+            self.latest_volatility = statistics.stdev(self._tick_returns)
+        else:
+            self.latest_volatility = 0.0
+        return self.latest_volatility
 
     async def on_bar(self, bar: Bar) -> None:
         if self._last_close is not None and bar.close > 0:
