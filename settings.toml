@@ -23,8 +23,6 @@ enable_risk_cap           = true
 #––– DCA –––#
 max_dca_levels       = 5                # max 2 adds
 dca_risk_multiplier  = 1.40             # gentle geometric growth
-dca_step_percent     = 0.4             # tighten step for HFT
-enable_rsi_dca       = true
 enable_atr_dca       = false
 atr_dca_multiplier   = 1.0
 dca_step_percent     = 0.3             # tighten step for HFT
