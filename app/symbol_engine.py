@@ -17,6 +17,7 @@ from app.exchange import BybitClient
 from app.market_features import MarketFeatures
 from app.notifier import notify_telegram
 from app.risk import RiskManager
+from src.strategy.entry import BounceEntry
 from app.signal_engine import SignalEngine
 from app.utils import snap_qty
 
@@ -181,6 +182,8 @@ class SymbolEngine:
         self.risk       = RiskManager(symbol)
         self.current_sl_price: float | None = None
         self.vol_history = deque(maxlen=50)
+        self.volume_window = deque(maxlen=20)
+        self.close_window = deque(maxlen=30)
         self.score_history = deque(maxlen=100)
         self.weights = settings.entry_score.symbol_weights.get(
             symbol, settings.entry_score.weights
@@ -294,6 +297,8 @@ class SymbolEngine:
 
     async def _on_bar(self, bar: Bar) -> None:
         await self.market.on_bar(bar)
+        self.close_window.append(bar.close)
+        self.volume_window.append(bar.volume)
 
     async def _update_multi_tf(self) -> None:
         """Fetch candles for additional timeframes periodically."""
@@ -463,6 +468,14 @@ class SymbolEngine:
                 "SHORT" if score > thr else None
             )
             print(f"[{self.symbol}] score={score:.2f} → {direction}")
+
+            current_bar = self.ohlc.last_bar
+            sig = None
+            if current_bar:
+                sig = BounceEntry.check(current_bar, self.volume_window, self.close_window, settings.symbol_params.get(self.symbol, {}))
+            if sig and self.risk.position.qty == 0:
+                await self._open_position(sig.value, price)
+                continue
 
             mode = "range"
             trend_dir = None
