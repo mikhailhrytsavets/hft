@@ -190,6 +190,9 @@ class SymbolEngine:
         self._last_mt_update: float = 0.0
         self._mt_candles: dict[str, list] = defaultdict(list)
         self._candle_agg = CandleAggregator()
+        from src.core.data import OHLCCollector
+        self.ohlc = OHLCCollector()
+        self.ohlc.subscribe(self._on_bar)
 
         # Streaming‑derived fields
         self.latest_obi: float | None = None
@@ -234,6 +237,14 @@ class SymbolEngine:
         self.latest_vbd    = self.market.update_vbd(buys, sells)
         self.risk.latest_vbd    = self.latest_vbd
         self.latest_tflow  = self.market.update_taker_flow(buys, sells)
+        for t in data:
+            price = float(t["p"])
+            qty = float(t["v"])
+            ts = int(t["T"])
+            self.ohlc.on_trade(price, qty, ts)
+
+    async def _on_bar(self, bar) -> None:
+        await self.market.on_bar(bar)
 
     # ---------------------------------------------------------------------
     # Setup helpers
