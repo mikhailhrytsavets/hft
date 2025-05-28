@@ -12,3 +12,13 @@ def test_spread_z(fixture_21_bars):
         asyncio.run(mf.on_bar(bar))
     z = mf.snapshot()["spread_z"]
     assert abs(z) < 5
+
+
+def test_update_volatility():
+    mf = MarketFeatures()
+    prices = [10 + i * 0.1 for i in range(10)]
+    vol = 0.0
+    for p in prices:
+        vol = mf.update_volatility(p)
+    assert mf.price_window[-1] == prices[-1]
+    assert vol >= 0
