@@ -7,6 +7,7 @@ from collections import deque, defaultdict
 import statistics
 
 from app.indicators import CandleAggregator
+from src.core.data import OHLCCollector, Bar
 
 from pybit.exceptions import InvalidRequestError
 from app.config import settings
@@ -190,6 +191,8 @@ class SymbolEngine:
         self._last_mt_update: float = 0.0
         self._mt_candles: dict[str, list] = defaultdict(list)
         self._candle_agg = CandleAggregator()
+        self.ohlc = OHLCCollector()
+        self.ohlc.subscribe(self._on_bar)
 
         # Streaming‑derived fields
         self.latest_obi: float | None = None
@@ -234,6 +237,9 @@ class SymbolEngine:
         self.latest_vbd    = self.market.update_vbd(buys, sells)
         self.risk.latest_vbd    = self.latest_vbd
         self.latest_tflow  = self.market.update_taker_flow(buys, sells)
+        for t in data:
+            ts = int((t.get("T") or t.get("ts") or t.get("t"))/1000)
+            self.ohlc.on_trade(float(t["p"]), float(t["v"]), ts)
 
     # ---------------------------------------------------------------------
     # Setup helpers
@@ -285,6 +291,9 @@ class SymbolEngine:
                 print(f"[{self.symbol}] 🧹 Canceled stale order {o['orderId']}")
             except Exception as exc:
                 print(f"[{self.symbol}] ⚠️ cancel_order failed: {exc}")
+
+    async def _on_bar(self, bar: Bar) -> None:
+        await self.market.on_bar(bar)
 
     async def _update_multi_tf(self) -> None:
         """Fetch candles for additional timeframes periodically."""
