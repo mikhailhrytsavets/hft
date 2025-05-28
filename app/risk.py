@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, date
 from pathlib import Path
 from app.config import settings
 from app.notifier import notify_telegram
+from src.core.indicators import compute_rsi, compute_adx_info, compute_adx
 
 from app.exchange import BybitClient
 
@@ -81,63 +82,17 @@ class RiskManager:
         return (current - reference) / reference * 100 if reference else 0
 
     def _compute_rsi(self, period: int) -> float | None:
-        if len(self.price_window) < period + 1:
-            return None
-        import numpy as np
-        closes = np.array([c for _, _, c in self.price_window], dtype=float)
-        deltas = np.diff(closes)
-        ups = np.clip(deltas, 0, None)
-        downs = -np.clip(deltas, None, 0)
-        avg_gain = np.mean(ups[-period:])
-        avg_loss = np.mean(downs[-period:])
-        if avg_loss == 0:
-            return 100.0
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
-
-
-    def _compute_adx_info(
-        self, period: int
-    ) -> tuple[float | None, float | None, float | None]:
-        """Return ADX along with +DI and -DI using Wilder smoothing."""
-        if len(self.price_window) < period * 2:
-            return None, None, None
         closes = [c for _, _, c in self.price_window]
-        ups: list[float] = []
-        downs: list[float] = []
-        trs: list[float] = []
-        for i in range(1, len(closes)):
-            diff = closes[i] - closes[i - 1]
-            ups.append(max(diff, 0.0))
-            downs.append(max(-diff, 0.0))
-            trs.append(abs(diff))
+        return compute_rsi(closes, period)
 
-        atr = sum(trs[:period])
-        plus_dm = sum(ups[:period])
-        minus_dm = sum(downs[:period])
-        if atr == 0:
-            return 0.0, 0.0, 0.0
-        plus_di = 100 * plus_dm / atr
-        minus_di = 100 * minus_dm / atr
-        di_sum = plus_di + minus_di
-        dx = 0.0 if di_sum == 0 else abs(plus_di - minus_di) / di_sum * 100
-        adx = dx
 
-        for i in range(period, len(trs)):
-            atr = atr - (atr / period) + trs[i]
-            plus_dm = plus_dm - (plus_dm / period) + ups[i]
-            minus_dm = minus_dm - (minus_dm / period) + downs[i]
-            plus_di = 100 * plus_dm / atr if atr else 0.0
-            minus_di = 100 * minus_dm / atr if atr else 0.0
-            di_sum = plus_di + minus_di
-            dx = 0.0 if di_sum == 0 else abs(plus_di - minus_di) / di_sum * 100
-            adx = (adx * (period - 1) + dx) / period
-
-        return adx, plus_di, minus_di
+    def _compute_adx_info(self, period: int) -> tuple[float | None, float | None, float | None]:
+        closes = [c for _, _, c in self.price_window]
+        return compute_adx_info(closes, period)
 
     def _compute_adx(self, period: int) -> float | None:
-        adx, _, _ = self._compute_adx_info(period)
-        return adx
+        closes = [c for _, _, c in self.price_window]
+        return compute_adx(closes, period)
 
     def _need_dca(self, price: float, change: float, now: datetime) -> bool:
         stg = settings.trading
