@@ -46,21 +46,26 @@ class _PrecisionCache:
         return step
 
 
-async def _fetch_closed_pnl(client: BybitClient, symbol: str, retries: int = 3) -> Optional[tuple[float, float]]:
-    """Pull the most recent closed‑PNL row with a short retry/back‑off."""
-    await asyncio.sleep(3)  # give exchange time to record the trade
+async def _fetch_closed_pnl(
+    client: BybitClient, symbol: str, retries: int = 10
+) -> Optional[tuple[float, float]]:
+    """Poll Bybit for the most recent closed PnL record."""
+
+    await asyncio.sleep(3)  # allow exchange to register the trade
     for _ in range(retries):
         try:
             resp = client.http.get_closed_pnl(category="linear", symbol=symbol, limit=1)
-            row = resp.get("result", {}).get("list", [])[0]
+            rows = resp.get("result", {}).get("list", [])
+            if not rows:
+                await asyncio.sleep(1)
+                continue
+            row = rows[0]
             net_pnl = float(row["closedPnl"])
             pnl_pct = net_pnl / float(row["cumEntryValue"]) * 100.0
             return net_pnl, pnl_pct
-        except IndexError:
-            await asyncio.sleep(1)  # not ready yet – retry
         except Exception as exc:
             print(f"[{symbol}] ⚠️ closed_pnl fetch error: {exc}")
-            break
+            await asyncio.sleep(1)
     return None
 
 
