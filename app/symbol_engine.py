@@ -99,6 +99,7 @@ class SymbolEngine:
             testnet=settings.bybit.testnet,
             demo=settings.bybit.demo,
             channel_type=settings.bybit.channel_type,
+            place_orders=settings.bybit.place_orders,
         )
         self.client.set_leverage(self.symbol, lev)
 

@@ -15,11 +15,20 @@ import urllib3
 
 
 class BybitClient:
-    def __init__(self, symbol: str, api_key: str, api_secret: str,
-                 testnet: bool = False, demo: bool = False, channel_type: str = "linear"):
+    def __init__(
+        self,
+        symbol: str,
+        api_key: str,
+        api_secret: str,
+        testnet: bool = False,
+        demo: bool = False,
+        channel_type: str = "linear",
+        place_orders: bool = True,
+    ):
         self.symbol = symbol
         self.channel_type = channel_type
         self.demo = demo
+        self.place_orders = place_orders
         self._init_http(api_key, api_secret, testnet, demo)
 
     def _init_http(self, key, secret, testnet, demo):
@@ -40,6 +49,9 @@ class BybitClient:
 
     @async_retry_rest()
     async def place_order(self, **params):
+        if not self.place_orders:
+            print(f"[{self.symbol}] 🚫 place_order suppressed: {params}")
+            return {}
         try:
             return await asyncio.to_thread(self.http.place_order, **params)
         except InvalidRequestError as e:
@@ -54,6 +66,9 @@ class BybitClient:
 
     @async_retry_rest()
     async def cancel_order(self, **params):
+        if not self.place_orders:
+            print(f"[{self.symbol}] 🚫 cancel_order suppressed: {params}")
+            return {}
         return await asyncio.to_thread(self.http.cancel_order, **params)
 
     @async_retry_rest()
@@ -96,6 +111,9 @@ class BybitClient:
 
     async def create_market_order(self, side: str, qty: float):
         """Place a market order with a unique ``orderLinkId``."""
+        if not self.place_orders:
+            print(f"[{self.symbol}] 🚫 create_market_order suppressed: {side} {qty}")
+            return {}
         from pybit.exceptions import InvalidRequestError
         link_id = self.gen_link_id("mk")
         while qty > 0:
@@ -128,6 +146,11 @@ class BybitClient:
         Биржевой стоп-маркет reduce-only (реальный SL на бирже).
         side — сторона исходной позиции ("Buy" → ставим "Sell" стоп).
         """
+        if not self.place_orders:
+            print(
+                f"[{self.symbol}] 🚫 create_reduce_only_sl suppressed: {side} {qty} @{trigger_price}"
+            )
+            return {}
         category = "linear" if self.symbol.endswith("USDT") else "inverse"
         trigger_direction = 2 if side == "Buy" else 1
         params = dict(
@@ -147,6 +170,9 @@ class BybitClient:
         return await self.place_order(**params)
 
     def set_leverage(self, symbol: str, leverage: int) -> None:
+        if not self.place_orders:
+            print(f"[{symbol}] 🚫 set_leverage suppressed")
+            return
         category = "linear" if symbol.endswith("USDT") else "inverse"
         try:
             self.http.set_leverage(
