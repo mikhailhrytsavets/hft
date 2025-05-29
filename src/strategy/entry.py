@@ -60,10 +60,10 @@ class BounceEntry:
             return None
 
         closes_seq: list[float] = list(closes)
-        lower, upper = bollinger(closes_seq, cfg["bb_period"], cfg["bb_dev"])
+        lower, _, upper = bollinger(closes_seq, cfg["bb_period"], cfg["bb_dev"])
         if lower is None or upper is None:
             return None
-        if bar.close >= lower:
+        if bar.close <= lower:
             direction = EntrySignal.LONG
         elif bar.close >= upper:
             direction = EntrySignal.SHORT
