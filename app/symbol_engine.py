@@ -555,12 +555,15 @@ class SymbolEngine:
         if close_qty > 0:
             side_close = "Sell" if self.risk.position.side == "Buy" else "Buy"
             try:
-                await self.client.create_limit_order(
+                resp = await self.client.create_limit_order(
                     side_close,
                     close_qty,
                     price,
                     reduce_only=True,
                 )
+                order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
+                if order_id:
+                    await self._wait_order_fill(order_id)
             except Exception as exc:
                 print(f"[{self.symbol}] TP1 close failed: {exc}")
                 return
@@ -602,12 +605,15 @@ class SymbolEngine:
             return
         side_close = "Sell" if self.risk.position.side == "Buy" else "Buy"
         try:
-            await self.client.create_limit_order(
+            resp = await self.client.create_limit_order(
                 side_close,
                 close_qty,
                 price,
                 reduce_only=True,
             )
+            order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
+            if order_id:
+                await self._wait_order_fill(order_id)
         except Exception as exc:
             print(f"[{self.symbol}] TP2 close failed: {exc}")
             return
@@ -635,12 +641,15 @@ class SymbolEngine:
         if qty_close <= 0:
             return
         try:
-            await self.client.create_limit_order(
+            resp = await self.client.create_limit_order(
                 side_close,
                 qty_close,
                 mkt_price,
                 reduce_only=True,
             )
+            order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
+            if order_id:
+                await self._wait_order_fill(order_id)
         except InvalidRequestError as exc:
             if "110017" in str(exc):
                 print(f"[{self.symbol}] ℹ️ Close order rejected: {exc}")
@@ -700,4 +709,18 @@ class SymbolEngine:
                     pass
         except Exception:
             pass
+
+    async def _wait_order_fill(self, order_id: str, timeout: float = 10.0, poll: float = 0.5) -> None:
+        """Wait until ``order_id`` is no longer present in open orders."""
+        end = time.time() + timeout
+        while time.time() < end:
+            try:
+                resp = await self.client.get_open_orders(category="linear", symbol=self.symbol)
+                orders = resp.get("result", {}).get("list", [])
+                if not any(o.get("orderId") == order_id for o in orders):
+                    return
+            except Exception:
+                pass
+            await asyncio.sleep(poll)
+        print(f"[{self.symbol}] ⚠️ order {order_id} not filled within {timeout}s")
 
