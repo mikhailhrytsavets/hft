@@ -14,12 +14,12 @@ class TradingSettings(BaseModel):
     leverage: int
     initial_risk_percent: float
     dca_risk_multiplier: float
-    dca_step_percent: float
+    dca_step_percent: float = 0.3
     max_dca_levels: int
     take_profit_percent: float
     soft_sl_percent: float
     soft_sl_minutes: int = 0  # 0 disables time-based soft stop
-    fallback_qty: float
+    fallback_qty: float = 0.0
     max_position_risk_percent: float = 5.0
     enable_risk_cap: bool = True
     enable_position_timeout: bool = False
