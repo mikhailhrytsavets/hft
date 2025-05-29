@@ -4,6 +4,11 @@ from __future__ import annotations
 from typing import Sequence, Tuple
 import statistics
 
+try:  # optional NumPy dependency
+    import numpy as np
+except Exception:  # pragma: no cover - fallback when numpy missing
+    np = None
+
 # ---------------------------------------------------------------------------
 # PHASE 1 AUDIT SUMMARY
 # ---------------------------------------------------------------------------
@@ -46,10 +51,16 @@ def compute_rsi(closes: Sequence[float], period: int) -> float | None:
     """Return RSI calculated using Wilder smoothing."""
     if len(closes) < period + 1:
         return None
-    arr = [float(c) for c in closes]
-    diff = [arr[i + 1] - arr[i] for i in range(len(arr) - 1)]
-    gain = [d if d > 0 else 0.0 for d in diff]
-    loss = [-d if d < 0 else 0.0 for d in diff]
+    if np is not None:
+        arr = np.asarray(closes, dtype=float)
+        diff = np.diff(arr)
+        gain = np.where(diff > 0, diff, 0.0)
+        loss = np.where(diff < 0, -diff, 0.0)
+    else:
+        arr = [float(c) for c in closes]
+        diff = [arr[i + 1] - arr[i] for i in range(len(arr) - 1)]
+        gain = [d if d > 0 else 0.0 for d in diff]
+        loss = [-d if d < 0 else 0.0 for d in diff]
     avg_gain = sum(gain[:period]) / period
     avg_loss = sum(loss[:period]) / period
     for g, l in zip(gain[period:], loss[period:]):
@@ -67,11 +78,18 @@ def compute_adx_info(
     if len(closes) < period * 2:
         return None, None, None
 
-    arr = [float(c) for c in closes]
-    diff = [arr[i + 1] - arr[i] for i in range(len(arr) - 1)]
-    up = [d if d > 0 else 0.0 for d in diff]
-    down = [-d if d < 0 else 0.0 for d in diff]
-    tr = [abs(d) for d in diff]
+    if np is not None:
+        arr = np.asarray(closes, dtype=float)
+        diff = np.diff(arr)
+        up = np.where(diff > 0, diff, 0.0)
+        down = np.where(diff < 0, -diff, 0.0)
+        tr = np.abs(diff)
+    else:
+        arr = [float(c) for c in closes]
+        diff = [arr[i + 1] - arr[i] for i in range(len(arr) - 1)]
+        up = [d if d > 0 else 0.0 for d in diff]
+        down = [-d if d < 0 else 0.0 for d in diff]
+        tr = [abs(d) for d in diff]
 
     atr = sum(tr[:period])
     plus_dm = sum(up[:period])
@@ -108,9 +126,14 @@ def bollinger(
     """Return lower/middle/upper Bollinger band."""
     if len(closes) < period:
         return None, None, None
-    subset = [float(c) for c in closes[-period:]]
-    mean = statistics.mean(subset)
-    sd = statistics.stdev(subset) if period > 1 else 0.0
+    if np is not None:
+        subset = np.asarray(closes[-period:], dtype=float)
+        mean = float(np.mean(subset))
+        sd = float(np.std(subset, ddof=1)) if period > 1 else 0.0
+    else:
+        subset = [float(c) for c in closes[-period:]]
+        mean = statistics.mean(subset)
+        sd = statistics.stdev(subset) if period > 1 else 0.0
     lower = mean - dev * sd
     upper = mean + dev * sd
     return lower, mean, upper
@@ -122,10 +145,16 @@ def atr(
     """Return the latest ATR value using Wilder smoothing."""
     if len(closes) < period + 1:
         return 0.0
-    h = [float(x) for x in highs]
-    l = [float(x) for x in lows]
-    c = [float(x) for x in closes]
-    tr = [h[i] - l[i] for i in range(1, len(c))]
+    if np is not None:
+        h = np.asarray(highs, dtype=float)
+        l = np.asarray(lows, dtype=float)
+        c = np.asarray(closes, dtype=float)
+        tr = h[1:] - l[1:]
+    else:
+        h = [float(x) for x in highs]
+        l = [float(x) for x in lows]
+        c = [float(x) for x in closes]
+        tr = [h[i] - l[i] for i in range(1, len(c))]
     atr_v = sum(tr[:period]) / period
     for val in tr[period:]:
         atr_v = (atr_v * (period - 1) + val) / period
@@ -138,18 +167,33 @@ def adx(
     """Return the latest ADX value using Wilder smoothing."""
     if len(closes) < period + 1:
         return 0.0
-    h = [float(x) for x in highs]
-    l = [float(x) for x in lows]
-    c = [float(x) for x in closes]
+    if np is not None:
+        h = np.asarray(highs, dtype=float)
+        l = np.asarray(lows, dtype=float)
+        c = np.asarray(closes, dtype=float)
 
-    up_move = [h[i] - h[i - 1] for i in range(1, len(h))]
-    down_move = [l[i - 1] - l[i] for i in range(1, len(l))]
-    plus_dm = [um if um > dm and um > 0 else 0.0 for um, dm in zip(up_move, down_move)]
-    minus_dm = [dm if dm > um and dm > 0 else 0.0 for um, dm in zip(up_move, down_move)]
-    tr = [
-        max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1]))
-        for i in range(1, len(c))
-    ]
+        up_move = h[1:] - h[:-1]
+        down_move = l[:-1] - l[1:]
+        plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+        minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+        tr = np.maximum.reduce([
+            h[1:] - l[1:],
+            np.abs(h[1:] - c[:-1]),
+            np.abs(l[1:] - c[:-1]),
+        ])
+    else:
+        h = [float(x) for x in highs]
+        l = [float(x) for x in lows]
+        c = [float(x) for x in closes]
+
+        up_move = [h[i] - h[i - 1] for i in range(1, len(h))]
+        down_move = [l[i - 1] - l[i] for i in range(1, len(l))]
+        plus_dm = [um if um > dm and um > 0 else 0.0 for um, dm in zip(up_move, down_move)]
+        minus_dm = [dm if dm > um and dm > 0 else 0.0 for um, dm in zip(up_move, down_move)]
+        tr = [
+            max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1]))
+            for i in range(1, len(c))
+        ]
 
     atr = sum(tr[:period])
     pdm = sum(plus_dm[:period])
