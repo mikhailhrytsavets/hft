@@ -8,7 +8,7 @@ api_key       = "zf72Bea3s8kMDd031d"          # ← замените при не
 api_secret    = "XMfDkNDUNRXWbSAkkSY5Prvz59lWaWIIzgw5"
 testnet       = false
 demo          = true
-place_orders  = false
+place_orders  = true
 channel_type  = "linear"
 symbols       = [
   "BTCUSDT","ETHUSDT","SOLUSDT","DOGEUSDT",
@@ -53,7 +53,7 @@ adx_threshold             = 25.0
 enable_hedging            = true
 max_hedges                = 5
 hedge_delay_seconds       = 2
-candle_interval_sec       = 15     # длина свечи (с) для быстрой инициализации
+candle_interval_sec       = 1     # длина свечи (с) для быстрой инициализации
 
 ########################  Multi-time-frame filter  #############################
 [multi_tf]
