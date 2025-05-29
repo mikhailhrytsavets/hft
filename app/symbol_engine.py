@@ -21,6 +21,12 @@ from app.risk import RiskManager
 from src.strategy.entry import BounceEntry
 from app.signal_engine import SignalEngine
 from app.utils import snap_qty
+from app.strategy_utils import (
+    entry_filters_fail,
+    higher_tf_trend,
+    handle_dca,
+    maybe_hedge,
+)
 
 __all__ = ["SymbolEngine"]
 
@@ -430,7 +436,7 @@ class SymbolEngine:
                     if trend_dir and direction != trend_dir:
                         print(f"[{self.symbol}] 🚫 TrendMode filter")
                         continue
-                if self._entry_filters_fail(spread_z, direction):
+                if entry_filters_fail(self, spread_z, direction):
                     continue
                 if settings.multi_tf.enable:
                     ok = True
@@ -447,7 +453,7 @@ class SymbolEngine:
                         print(f"[{self.symbol}] 🚫 multi-TF filter")
                         continue
                 if settings.trading.use_htf_filter:
-                    htf = self._higher_tf_trend()
+                    htf = higher_tf_trend(self)
                     if htf == "UP" and direction == "SHORT":
                         print(f"[{self.symbol}] 🚫 HTF filter")
                         continue
@@ -466,72 +472,6 @@ class SymbolEngine:
     # ------------------------------------------------------------------
     # Entry helpers
     # ------------------------------------------------------------------
-    def _entry_filters_fail(self, spread_z: float, direction: str) -> bool:
-        if settings.trading.enable_time_filter:
-            now = datetime.utcnow().hour
-            if not (
-                settings.trading.trade_start_hour
-                <= now
-                < settings.trading.trade_end_hour
-            ):
-                print(f"[{self.symbol}] 🚫 Time filter")
-                return True
-        if self.vol_history:
-            avg_vol = statistics.mean(self.vol_history)
-            thr_vol = avg_vol * 3
-            if self.latest_vol > thr_vol:
-                print(f"[{self.symbol}] 🚫 Volatility filter")
-                return True
-        if abs(spread_z) > self.SPREAD_Z_MAX:
-            print(f"[{self.symbol}] 🚫 Spread‑Z filter")
-            return True
-        if settings.trading.enable_rsi_filter:
-            prices = list(self.market.price_window)
-            if len(prices) >= settings.trading.rsi_period + 1:
-                import numpy as np
-                deltas = np.diff(prices)
-                ups = np.clip(deltas, 0, None)
-                downs = -np.clip(deltas, None, 0)
-                avg_gain = np.mean(ups[-settings.trading.rsi_period:])
-                avg_loss = np.mean(downs[-settings.trading.rsi_period:])
-                if avg_loss == 0:
-                    rsi = 100.0
-                else:
-                    rs = avg_gain / avg_loss
-                    rsi = 100 - (100 / (1 + rs))
-                if direction == "LONG" and rsi >= settings.trading.rsi_overbought:
-                    print(f"[{self.symbol}] 🚫 RSI filter")
-                    return True
-                if direction == "SHORT" and rsi <= settings.trading.rsi_oversold:
-                    print(f"[{self.symbol}] 🚫 RSI filter")
-                    return True
-        if settings.trading.use_adx_filter:
-            prices = list(self.market.price_window)
-            adx = compute_adx(prices, settings.trading.adx_period)
-            if adx is not None and adx >= settings.trading.adx_threshold:
-                print(f"[{self.symbol}] 🚫 ADX filter")
-                return True
-        return False
-
-    def _higher_tf_trend(self) -> str | None:
-        """Return trend of the latest higher timeframe candle."""
-        try:
-            resp = self.client.http.get_kline(
-                category="linear",
-                symbol=self.symbol,
-                interval=settings.trading.htf_interval,
-                limit=1,
-            )
-            candle = resp.get("result", {}).get("list", [])[0]
-            open_price = float(candle.get("open") or candle.get("o"))
-            close_price = float(candle.get("close") or candle.get("c"))
-            if close_price > open_price:
-                return "UP"
-            if close_price < open_price:
-                return "DOWN"
-        except Exception as exc:
-            print(f"[{self.symbol}] ⚠️ HTF fetch error: {exc}")
-        return None
 
     async def _open_position(self, direction: str, price: float) -> None:
         side = "Buy" if direction == "LONG" else "Sell"
@@ -595,93 +535,17 @@ class SymbolEngine:
                     await self._set_sl(self.risk.position.qty, self.risk.trail_price)
             return
         if signal == "DCA":
-            await self._handle_dca(price)
+            await handle_dca(self, price)
         elif signal == "TP2":
             await self._handle_tp2(price)
         elif signal == "TP1":
             await self._handle_tp1(price)
         else:  # TP, SOFT_SL, TRAIL or TIMEOUT
             if signal in ("SOFT_SL", "TRAIL") and settings.trading.enable_hedging:
-                await self._maybe_hedge(self.risk.position.side, self.risk.position.qty, price, datetime.utcnow())
+                await maybe_hedge(self, self.risk.position.side, self.risk.position.qty, price, datetime.utcnow())
                 return
             await self._close_position(signal, price)
 
-    async def _maybe_hedge(self, side: str, qty: float, price: float, now: datetime):
-        stg = settings.trading
-
-        if self.hedge_cycle_count >= stg.max_hedges:
-            await self._close_position("SOFT_SL", price)
-            return
-
-        if stg.hedge_delay_seconds > 0:
-            await asyncio.sleep(stg.hedge_delay_seconds)
-
-        if stg.enable_hedge_adx_filter:
-            closes = [c for _, _, c in self.risk.price_window]
-            adx = compute_adx(closes, settings.trading.adx_period)
-            if adx is None or adx < stg.hedge_adx_threshold:
-                await self._close_position("SOFT_SL", price)
-                return
-
-        step = self.precision.step(self.client.http, self.symbol)
-        hedge_qty = snap_qty(qty * stg.hedge_size_ratio, step)
-        if hedge_qty <= 0:
-            await self._close_position("SOFT_SL", price)
-            return
-
-        side_flip = "Sell" if side == "Buy" else "Buy"
-        await self._close_position("SOFT_SL", price)
-        try:
-            await self.client.create_limit_order(side_flip, hedge_qty, price)
-        except Exception as exc:
-            print(f"[{self.symbol}] Hedge failed: {exc}")
-            return
-
-        self.hedge_cycle_count += 1
-        RiskManager.active_positions.add(self.symbol)
-        RiskManager.position_volumes[self.symbol] = hedge_qty * price
-        self.risk.reset_trade()
-        self.risk.position.side = side_flip
-        self.risk.position.qty = hedge_qty
-        self.risk.position.avg_price = price
-        self.risk.position.open_time = now
-
-        sl_px = self._soft_sl_price(price, side_flip)
-        await self._set_sl(hedge_qty, sl_px)
-
-    async def _handle_dca(self, price: float) -> None:
-        base = settings.trading.initial_risk_percent
-        q = settings.trading.dca_risk_multiplier
-        risk_pct = base * (q ** self.risk.dca_levels)
-        if settings.trading.enable_risk_cap:
-            used = sum(base * (q ** i) for i in range(self.risk.dca_levels))
-            remaining = settings.trading.max_position_risk_percent - used
-            if remaining <= 0:
-                print(f"[{self.symbol}] DCA risk cap reached")
-                return
-            risk_pct = min(risk_pct, remaining)
-        try:
-            qty = await self.safe_qty_calc(price, risk_pct)
-        except Exception as exc:
-            print(f"[{self.symbol}] DCA qty calc failed: {exc}")
-            return
-        await self.client.create_limit_order(self.risk.position.side, qty, price)
-        RiskManager.position_volumes[self.symbol] = (
-            RiskManager.position_volumes.get(self.symbol, 0.0) + qty * price
-        )
-
-        total_qty = self.risk.position.qty + qty
-        new_avg   = (self.risk.position.avg_price * self.risk.position.qty + price * qty) / total_qty
-        self.risk.position.qty = total_qty
-        self.risk.position.avg_price = new_avg
-        self.risk.initial_qty = total_qty
-        self.risk.entry_value += qty * price
-        self.risk.last_dca_price = price
-        await notify_telegram(f"➕ DCA {self.symbol}: +{qty} → avg {new_avg:.4f}")
-
-        # move SL --------------------------------------------------------
-        sl_px = self._soft_sl_price(new_avg, self.risk.position.side)
-        await self._set_sl(total_qty, sl_px)
 
     async def _handle_tp1(self, price: float) -> None:
         step = self.precision.step(self.client.http, self.symbol)
