@@ -1,6 +1,6 @@
 import asyncio
 from src.symbol_engine import SymbolEngine
-from tests.conftest import feed_trades, fixture_trades_5m
+from tests.conftest import feed_trades
 
 
 def test_one_bar(fixture_trades_5m):

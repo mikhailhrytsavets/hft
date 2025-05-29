@@ -1,5 +1,4 @@
 import asyncio
-import pytest
 
 from src.symbol_engine import SymbolEngine
 from src.strategy.bounce_entry import BounceEntry, EntrySignal

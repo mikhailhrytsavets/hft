@@ -1,18 +1,39 @@
 import asyncio
+import logging
+from types import SimpleNamespace
 from app.symbol_engine import SymbolEngine
 from app.config import settings
 from app.command_listener import telegram_command_listener
 from app.exchange import BybitClient
 from app.notifier import notify_telegram
+from src.risk.guard import RiskGuard
+
+logger = logging.getLogger(__name__)
 
 class SymbolEngineManager:
     def __init__(self, symbols: list[str]):
         self.symbols = symbols
         self.tasks: dict[str, asyncio.Task] = {}
         self.engines: dict[str, SymbolEngine] = {}
+        self.account = SimpleNamespace(equity_usd=0.0, open_positions=[])
+        self.guard = RiskGuard(self.account)
+
+    def _patch_engine(self, engine: SymbolEngine) -> None:
+        original = engine._open_position
+
+        async def guarded(direction: str, price: float):
+            pct = settings.trading.initial_risk_percent
+            if self.guard.allow_new_position(pct):
+                self.account.open_positions.append(SimpleNamespace(risk_pct=pct))
+                await original(direction, price)
+            else:
+                logger.info("Portfolio risk cap hit")
+
+        engine._open_position = guarded
 
     async def _run_engine(self, symbol: str):
         engine = SymbolEngine(symbol)
+        self._patch_engine(engine)
         self.engines[symbol] = engine
         attempt = 0
         while True:
@@ -21,10 +42,11 @@ class SymbolEngineManager:
             except Exception as exc:
                 attempt += 1
                 wait = min(2 ** attempt, 64)
-                print(f"[{symbol}] ❌ Engine crashed: {exc} → restart in {wait}s")
+                logger.error(f"[{symbol}] ❌ Engine crashed: {exc} → restart in {wait}s")
                 await notify_telegram(f"❌ Engine {symbol} crashed: {exc}")
                 await asyncio.sleep(wait)
                 engine = SymbolEngine(symbol)
+                self._patch_engine(engine)
                 self.engines[symbol] = engine
             else:
                 attempt = 0

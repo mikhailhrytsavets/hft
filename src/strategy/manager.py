@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Simple position management for backtesting."""
+
+from __future__ import annotations
 
 from dataclasses import dataclass
 

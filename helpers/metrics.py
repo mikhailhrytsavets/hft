@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Performance metric helpers."""
+
+from __future__ import annotations
 
 from typing import Sequence, Iterable, Mapping
 import statistics

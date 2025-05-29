@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from collections import deque
 
 from src.core.data import Bar
 from src.core import indicators
-from src.strategy.entry import BounceEntry, EntrySignal
+from src.strategy.entry import BounceEntry
 from src.strategy.manager import PositionManager
 
 

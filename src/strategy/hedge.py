@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Hedging helpers implementing volume ratios and trigger rules."""
+
+from __future__ import annotations
 
 from typing import Tuple
 

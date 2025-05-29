@@ -3,9 +3,9 @@
 import asyncio
 import json
 import inspect
+import logging
 import websockets
 from pybit.unified_trading import HTTP
-from app.config import settings
 from pybit.exceptions import InvalidRequestError
 import time
 import math
@@ -13,6 +13,7 @@ import requests
 from utils.retry import async_retry_rest
 import urllib3
 
+logger = logging.getLogger(__name__)
 
 class BybitClient:
     def __init__(
@@ -39,7 +40,7 @@ class BybitClient:
         )
 
     def refresh_http(self):
-        print(f"[{self.symbol}] 🔄 Refreshing HTTP session…")
+        logger.info(f"[{self.symbol}] 🔄 Refreshing HTTP session…")
         self._init_http(self.http.api_key, self.http.api_secret, self.http.testnet, self.http.demo)
 
     def gen_link_id(self, tag: str) -> str:
@@ -50,14 +51,14 @@ class BybitClient:
     @async_retry_rest()
     async def place_order(self, **params):
         if not self.place_orders:
-            print(f"[{self.symbol}] 🚫 place_order suppressed: {params}")
+            logger.warning(f"[{self.symbol}] 🚫 place_order suppressed: {params}")
             return {}
         try:
             return await asyncio.to_thread(self.http.place_order, **params)
         except InvalidRequestError as e:
             # 110030 – Duplicate orderId (idempotent retry)
             if "110030" in str(e):
-                print(f"[{self.symbol}] ℹ️ Duplicate order ignored")
+                logger.info(f"[{self.symbol}] ℹ️ Duplicate order ignored")
                 return {}
             raise
         except (requests.ConnectionError, urllib3.exceptions.ProtocolError):
@@ -67,7 +68,7 @@ class BybitClient:
     @async_retry_rest()
     async def cancel_order(self, **params):
         if not self.place_orders:
-            print(f"[{self.symbol}] 🚫 cancel_order suppressed: {params}")
+            logger.warning(f"[{self.symbol}] 🚫 cancel_order suppressed: {params}")
             return {}
         return await asyncio.to_thread(self.http.cancel_order, **params)
 
@@ -90,7 +91,7 @@ class BybitClient:
                 ) as ws:
                     sub = {"op": "subscribe", "args": [f"publicTrade.{self.symbol}"]}
                     await ws.send(json.dumps(sub))
-                    print(f"[{self.symbol}] ✅ Подписка на publicTrade")
+                    logger.info(f"[{self.symbol}] ✅ Подписка на publicTrade")
                     attempt = 0
                     while True:
                         try:
@@ -104,15 +105,13 @@ class BybitClient:
             except Exception as e:
                 attempt += 1
                 wait = min(2 ** attempt, 64)
-                print(
-                    f"❌ [WS] Поток цен {self.symbol} закрылся: {type(e).__name__} → {e}. Повтор через {wait}s"
-                )
+                logger.warning(f"❌ [WS] Поток цен {self.symbol} закрылся: {type(e).__name__} → {e}. Повтор через {wait}s")
                 await asyncio.sleep(wait)
 
     async def create_market_order(self, side: str, qty: float):
         """Place a market order with a unique ``orderLinkId``."""
         if not self.place_orders:
-            print(f"[{self.symbol}] 🚫 create_market_order suppressed: {side} {qty}")
+            logger.warning(f"[{self.symbol}] 🚫 create_market_order suppressed: {side} {qty}")
             return {}
         from pybit.exceptions import InvalidRequestError
         link_id = self.gen_link_id("mk")
@@ -130,7 +129,7 @@ class BybitClient:
             except InvalidRequestError as e:
                 if "max. limit" in str(e):
                     qty = math.floor(qty * 0.8)
-                    print(f"[{self.symbol}] 🔄 qty↓ → {qty}")
+                    logger.info(f"[{self.symbol}] 🔄 qty↓ → {qty}")
                     continue
                 raise
 
@@ -147,7 +146,7 @@ class BybitClient:
         side — сторона исходной позиции ("Buy" → ставим "Sell" стоп).
         """
         if not self.place_orders:
-            print(
+            logger.warning(
                 f"[{self.symbol}] 🚫 create_reduce_only_sl suppressed: {side} {qty} @{trigger_price}"
             )
             return {}
@@ -171,7 +170,7 @@ class BybitClient:
 
     def set_leverage(self, symbol: str, leverage: int) -> None:
         if not self.place_orders:
-            print(f"[{symbol}] 🚫 set_leverage suppressed")
+            logger.warning(f"[{symbol}] 🚫 set_leverage suppressed")
             return
         category = "linear" if symbol.endswith("USDT") else "inverse"
         try:
@@ -181,11 +180,11 @@ class BybitClient:
                 buyLeverage=str(leverage),
                 sellLeverage=str(leverage)
             )
-            print(f"[{symbol}] ⚙️ Leverage set to {leverage}x")
+            logger.info(f"[{symbol}] ⚙️ Leverage set to {leverage}x")
         except InvalidRequestError as err:
             # 110043 -> уже такое же плечо
             if "110043" in str(err):
-                print(f"[{symbol}] ℹ️ Leverage already {leverage}x – пропускаем")
+                logger.info(f"[{symbol}] ℹ️ Leverage already {leverage}x – пропускаем")
             else:
                 raise  # всё остальное пробрасываем наружу
 
@@ -248,9 +247,7 @@ class BybitClient:
             except Exception as e:
                 attempt += 1
                 wait = min(2 ** attempt, 64)
-                print(
-                    f"❌ [WS] multi-stream closed: {type(e).__name__} → {e}. Retry in {wait}s"
-                )
+                logger.warning(f"❌ [WS] multi-stream closed: {type(e).__name__} → {e}. Retry in {wait}s")
                 await asyncio.sleep(wait)
 
     async def get_orderbook(self):
@@ -274,7 +271,7 @@ class BybitClient:
             usd_limit = float(level["riskLimitValue"])
             return usd_limit / price * leverage
         except Exception as e:
-            print(f"[{self.symbol}] ⚠️ Не смог получить risk-limit: {e}")
+            logger.warning(f"[{self.symbol}] ⚠️ Не смог получить risk-limit: {e}")
             return None
 
     @async_retry_rest()

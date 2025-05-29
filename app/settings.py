@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Lightweight settings loader with sensible defaults."""
+
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict

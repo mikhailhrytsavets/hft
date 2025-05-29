@@ -1,14 +1,14 @@
 import asyncio
-import math
 import time
 from datetime import datetime
 from typing import Optional
 from collections import deque, defaultdict
 import statistics
+import logging
 
 from app.indicators import CandleAggregator
 from src.core.data import OHLCCollector, Bar
-from src.core.indicators import compute_adx, compute_adx_info
+from src.core.indicators import compute_adx
 
 from pybit.exceptions import InvalidRequestError
 from app.config import settings
@@ -21,6 +21,8 @@ from app.risk import RiskManager
 from src.strategy.entry import BounceEntry
 from app.signal_engine import SignalEngine
 from app.utils import snap_qty
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["SymbolEngine"]
 
@@ -41,10 +43,10 @@ class _PrecisionCache:
             info = http.get_instruments_info(category="linear", symbol=symbol)
             step = float(info["result"]["list"][0]["lotSizeFilter"]["qtyStep"])
         except Exception as exc:  # pragma: no cover – network call
-            print(f"[{symbol}] ⚠️ qtyStep fetch failed: {exc}")
+            logger.warning(f"[{symbol}] ⚠️ qtyStep fetch failed: {exc}")
             step = 1.0
         self._cache[symbol] = step
-        print(f"[{symbol}] ℹ️ qtyStep cached = {step}")
+        logger.info(f"[{symbol}] ℹ️ qtyStep cached = {step}")
         return step
 
 
@@ -66,7 +68,7 @@ async def _fetch_closed_pnl(
             pnl_pct = net_pnl / float(row["cumEntryValue"]) * 100.0
             return net_pnl, pnl_pct
         except Exception as exc:
-            print(f"[{symbol}] ⚠️ closed_pnl fetch error: {exc}")
+            logger.warning(f"[{symbol}] ⚠️ closed_pnl fetch error: {exc}")
             await asyncio.sleep(1)
     return None
 
@@ -112,9 +114,9 @@ class SymbolEngine:
                 idxs = {p.get("positionIdx") for p in positions}
                 hedge = len(positions) > 1 or any(i in (1, 2) for i in idxs)
                 if not hedge:
-                    print(f"[{self.symbol}] ⚠️ Hedge mode appears disabled")
+                    logger.warning(f"[{self.symbol}] ⚠️ Hedge mode appears disabled")
             except Exception as exc:  # pragma: no cover – network call
-                print(f"[{self.symbol}] ⚠️ Hedge mode check failed: {exc}")
+                logger.warning(f"[{self.symbol}] ⚠️ Hedge mode check failed: {exc}")
 
         # State / utils -------------------------------------------------------
         self.precision = _PrecisionCache()
@@ -198,16 +200,18 @@ class SymbolEngine:
                 self.risk.position.qty        = size
                 self.risk.position.avg_price  = float(pos["avgPrice"])
                 self.risk.position.open_time  = datetime.utcnow()
-                print(f"[{self.symbol}] 🧠 Restored active position {size} {pos['side']} @ {pos['avgPrice']}")
+                logger.info(
+                    f"[{self.symbol}] 🧠 Restored active position {size} {pos['side']} @ {pos['avgPrice']}"
+                )
         except Exception as exc:
-            print(f"[{self.symbol}] ⚠️ Position restore failed: {exc}")
+            logger.warning(f"[{self.symbol}] ⚠️ Position restore failed: {exc}")
 
     def _purge_stale_orders(self) -> None:
         """Keep only *one* valid reduce‑only TP Limit order (if any) and cancel others."""
         try:
             orders = self.client.http.get_open_orders(category="linear", symbol=self.symbol)["result"]["list"]
         except Exception as exc:
-            print(f"[{self.symbol}] ⚠️ open_orders fetch failed: {exc}")
+            logger.warning(f"[{self.symbol}] ⚠️ open_orders fetch failed: {exc}")
             return
 
         for o in orders:
@@ -217,7 +221,7 @@ class SymbolEngine:
             )
             if keep_tp and not self.tp_order_id:
                 self.tp_order_id = o["orderId"]  # keep the first found
-                print(f"[{self.symbol}] 🧠 Keeping existing TP order = {self.tp_order_id}")
+                logger.info(f"[{self.symbol}] 🧠 Keeping existing TP order = {self.tp_order_id}")
                 continue
             if (
                 o.get("reduceOnly")
@@ -227,14 +231,16 @@ class SymbolEngine:
             ):
                 self.sl_order_id = o["orderId"]
                 self.current_sl_price = float(o["triggerPrice"])
-                print(f"[{self.symbol}] 🧠 Restored SL order = {self.sl_order_id}")
+                logger.info(f"[{self.symbol}] 🧠 Restored SL order = {self.sl_order_id}")
                 continue
             # otherwise cancel
             try:
-                self.client.http.cancel_order(category="linear", symbol=self.symbol, orderId=o["orderId"])
-                print(f"[{self.symbol}] 🧹 Canceled stale order {o['orderId']}")
+                self.client.http.cancel_order(
+                    category="linear", symbol=self.symbol, orderId=o["orderId"]
+                )
+                logger.info(f"[{self.symbol}] 🧹 Canceled stale order {o['orderId']}")
             except Exception as exc:
-                print(f"[{self.symbol}] ⚠️ cancel_order failed: {exc}")
+                logger.warning(f"[{self.symbol}] ⚠️ cancel_order failed: {exc}")
 
     async def _on_bar(self, bar: Bar) -> None:
         await self.market.on_bar(bar)
@@ -253,7 +259,7 @@ class SymbolEngine:
                     self.symbol, tf, limit=mt.trend_confirm_bars
                 )
             except Exception as exc:
-                print(f"[{self.symbol}] ⚠️ multi_tf fetch {tf}: {exc}")
+                logger.warning(f"[{self.symbol}] ⚠️ multi_tf fetch {tf}: {exc}")
         self._last_mt_update = now
 
     # ---------------------------------------------------------------------
@@ -310,10 +316,12 @@ class SymbolEngine:
                     if allowed <= 0:
                         raise ValueError(f"Risk-limit reached: {current_size}/{max_size}")
                     if qty_raw > allowed:
-                        print(f"[{self.symbol}] ⚠️ Qty {qty_raw} > allowed {allowed}. Обрезаем до allowed")
+                        logger.warning(
+                            f"[{self.symbol}] ⚠️ Qty {qty_raw} > allowed {allowed}. Обрезаем до allowed"
+                        )
                         qty_raw = allowed
             except Exception as e:
-                print(f"[{self.symbol}] ⚠️ Не смог получить risk-limit: {e}")
+                logger.warning(f"[{self.symbol}] ⚠️ Не смог получить risk-limit: {e}")
 
             step = self.precision.step(self.client.http, self.symbol)
             qty = snap_qty(qty_raw, step)
@@ -321,35 +329,35 @@ class SymbolEngine:
             if qty <= 0:
                 raise ValueError(f"Qty недопустим: {qty}")
 
-            print(
+            logger.info(
                 f"[{self.symbol}] ✅ Equity={available:.2f}, Risk%={risk_percent:.3f}, "
                 f"Notional={notional:.2f}, Qty={qty} (max_size={max_size if max_size is not None else 'N/A'}, allowed={allowed if allowed is not None else 'N/A'})"
             )
             return qty
         except Exception as e:
-            print(f"[{self.symbol}] ❌ safe_qty_calc: {type(e).__name__} → {e}")
+            logger.error(f"[{self.symbol}] ❌ safe_qty_calc: {type(e).__name__} → {e}")
             raise
 
     # ---------------------------------------------------------------------
     # Main loop
     # ---------------------------------------------------------------------
     async def run(self) -> None:
-        print(f"[{self.symbol}] ⏳ Waiting for first order‑book snapshot…")
+        logger.info(f"[{self.symbol}] ⏳ Waiting for first order‑book snapshot…")
         while self.latest_obi is None:
             await asyncio.sleep(0.05)
-        print(f"[{self.symbol}] ✅ Market data online – starting price stream")
+        logger.info(f"[{self.symbol}] ✅ Market data online – starting price stream")
 
         warmup_target = max(settings.trading.rsi_period, settings.trading.adx_period * 2) + 1
         warmup_done = len(self.risk.price_window) >= warmup_target
         if not warmup_done:
-            print(
+            logger.info(
                 f"[{self.symbol}] 🔄 Warming up indicators "
                 f"{len(self.risk.price_window)}/{warmup_target}"
             )
 
         async for price in self.client.price_stream():
             if self._stopped:
-                print(f"[{self.symbol}] 🛑 Engine stopped due to risk limit")
+                logger.info(f"[{self.symbol}] 🛑 Engine stopped due to risk limit")
                 break
             # ---------------- Feature update -----------------------------
             self.signal.update(price, volume=1.0)
@@ -363,13 +371,13 @@ class SymbolEngine:
                 high, low, close = candle
                 self.risk.price_window.append((high, low, close))
                 if not warmup_done:
-                    print(
+                    logger.info(
                         f"[{self.symbol}] 🔄 Warming up indicators "
                         f"{len(self.risk.price_window)}/{warmup_target}"
                     )
                     if len(self.risk.price_window) >= warmup_target:
                         warmup_done = True
-                        print(f"[{self.symbol}] ✅ Indicators ready")
+                        logger.info(f"[{self.symbol}] ✅ Indicators ready")
             if not warmup_done:
                 continue
 
@@ -408,7 +416,7 @@ class SymbolEngine:
                 "LONG"  if score < -thr else
                 "SHORT" if score > thr else None
             )
-            print(f"[{self.symbol}] score={score:.2f} → {direction}")
+            logger.info(f"[{self.symbol}] score={score:.2f} → {direction}")
 
             current_bar = self.ohlc.last_bar
             sig = None
@@ -428,13 +436,13 @@ class SymbolEngine:
                     else:
                         avg = statistics.mean(self.market.price_window) if self.market.price_window else price
                         trend_dir = "LONG" if price >= avg else "SHORT"
-                print(f"[{self.symbol}] Mode={mode}, ADX={adx:.2f}, dir={trend_dir}")
+                logger.info(f"[{self.symbol}] Mode={mode}, ADX={adx:.2f}, dir={trend_dir}")
 
             # ---------------- Entry -------------------------------------
             if direction and self.risk.position.qty == 0:
                 if settings.trading.enable_trend_mode and mode == "trend":
                     if trend_dir and direction != trend_dir:
-                        print(f"[{self.symbol}] 🚫 TrendMode filter")
+                        logger.info(f"[{self.symbol}] 🚫 TrendMode filter")
                         continue
                 if self._entry_filters_fail(spread_z, direction):
                     continue
@@ -450,15 +458,15 @@ class SymbolEngine:
                         if direction == "SHORT" and trend != "DOWN":
                             ok = False
                     if not ok:
-                        print(f"[{self.symbol}] 🚫 multi-TF filter")
+                        logger.info(f"[{self.symbol}] 🚫 multi-TF filter")
                         continue
                 if settings.trading.use_htf_filter:
                     htf = self._higher_tf_trend()
                     if htf == "UP" and direction == "SHORT":
-                        print(f"[{self.symbol}] 🚫 HTF filter")
+                        logger.info(f"[{self.symbol}] 🚫 HTF filter")
                         continue
                     if htf == "DOWN" and direction == "LONG":
-                        print(f"[{self.symbol}] 🚫 HTF filter")
+                        logger.info(f"[{self.symbol}] 🚫 HTF filter")
                         continue
                 await self._open_position(direction, price)
                 continue  # wait next tick
@@ -477,16 +485,16 @@ class SymbolEngine:
                 <= now
                 < settings.trading.trade_end_hour
             ):
-                print(f"[{self.symbol}] 🚫 Time filter")
+                logger.info(f"[{self.symbol}] 🚫 Time filter")
                 return True
         if self.vol_history:
             avg_vol = statistics.mean(self.vol_history)
             thr_vol = avg_vol * 3
             if self.latest_vol > thr_vol:
-                print(f"[{self.symbol}] 🚫 Volatility filter")
+                logger.info(f"[{self.symbol}] 🚫 Volatility filter")
                 return True
         if abs(spread_z) > self.SPREAD_Z_MAX:
-            print(f"[{self.symbol}] 🚫 Spread‑Z filter")
+            logger.info(f"[{self.symbol}] 🚫 Spread‑Z filter")
             return True
         if settings.trading.enable_rsi_filter:
             prices = list(self.market.price_window)
@@ -503,16 +511,16 @@ class SymbolEngine:
                     rs = avg_gain / avg_loss
                     rsi = 100 - (100 / (1 + rs))
                 if direction == "LONG" and rsi >= settings.trading.rsi_overbought:
-                    print(f"[{self.symbol}] 🚫 RSI filter")
+                    logger.info(f"[{self.symbol}] 🚫 RSI filter")
                     return True
                 if direction == "SHORT" and rsi <= settings.trading.rsi_oversold:
-                    print(f"[{self.symbol}] 🚫 RSI filter")
+                    logger.info(f"[{self.symbol}] 🚫 RSI filter")
                     return True
         if settings.trading.use_adx_filter:
             prices = list(self.market.price_window)
             adx = compute_adx(prices, settings.trading.adx_period)
             if adx is not None and adx >= settings.trading.adx_threshold:
-                print(f"[{self.symbol}] 🚫 ADX filter")
+                logger.info(f"[{self.symbol}] 🚫 ADX filter")
                 return True
         return False
 
@@ -533,7 +541,7 @@ class SymbolEngine:
             if close_price < open_price:
                 return "DOWN"
         except Exception as exc:
-            print(f"[{self.symbol}] ⚠️ HTF fetch error: {exc}")
+            logger.info(f"[{self.symbol}] ⚠️ HTF fetch error: {exc}")
         return None
 
     async def _open_position(self, direction: str, price: float) -> None:
@@ -543,7 +551,7 @@ class SymbolEngine:
                 settings.risk.max_open_positions
                 and len(RiskManager.active_positions) >= settings.risk.max_open_positions
             ):
-                print(f"[{self.symbol}] 🚫 Max open positions reached")
+                logger.info(f"[{self.symbol}] 🚫 Max open positions reached")
                 return
             # current equity check -----------------------------------------
             info = await self.client.get_wallet_balance(accountType="UNIFIED")
@@ -562,10 +570,10 @@ class SymbolEngine:
                 settings.risk.max_total_volume
                 and total_vol + volume > settings.risk.max_total_volume
             ):
-                print(f"[{self.symbol}] 🚫 Total volume limit reached")
+                logger.info(f"[{self.symbol}] 🚫 Total volume limit reached")
                 return
         except Exception as exc:
-            print(f"[{self.symbol}] Qty calc failed: {exc}")
+            logger.info(f"[{self.symbol}] Qty calc failed: {exc}")
             return
         await self.client.create_market_order(side, qty)
         await notify_telegram(f"📥 Entry {self.symbol} {side} qty={qty}")
@@ -637,7 +645,7 @@ class SymbolEngine:
         try:
             await self.client.create_market_order(side_flip, hedge_qty)
         except Exception as exc:
-            print(f"[{self.symbol}] Hedge failed: {exc}")
+            logger.info(f"[{self.symbol}] Hedge failed: {exc}")
             return
 
         self.hedge_cycle_count += 1
@@ -660,13 +668,13 @@ class SymbolEngine:
             used = sum(base * (q ** i) for i in range(self.risk.dca_levels))
             remaining = settings.trading.max_position_risk_percent - used
             if remaining <= 0:
-                print(f"[{self.symbol}] DCA risk cap reached")
+                logger.info(f"[{self.symbol}] DCA risk cap reached")
                 return
             risk_pct = min(risk_pct, remaining)
         try:
             qty = await self.safe_qty_calc(price, risk_pct)
         except Exception as exc:
-            print(f"[{self.symbol}] DCA qty calc failed: {exc}")
+            logger.info(f"[{self.symbol}] DCA qty calc failed: {exc}")
             return
         await self.client.create_market_order(self.risk.position.side, qty)
         RiskManager.position_volumes[self.symbol] = (
@@ -703,7 +711,7 @@ class SymbolEngine:
                     reduceOnly=True,
                 )
             except Exception as exc:
-                print(f"[{self.symbol}] TP1 close failed: {exc}")
+                logger.info(f"[{self.symbol}] TP1 close failed: {exc}")
                 return
             self.risk.position.qty -= close_qty
             pnl_part = _calc_pnl(self.risk.position.side, self.risk.position.avg_price, price, close_qty)
@@ -752,7 +760,7 @@ class SymbolEngine:
                 reduceOnly=True,
             )
         except Exception as exc:
-            print(f"[{self.symbol}] TP2 close failed: {exc}")
+            logger.info(f"[{self.symbol}] TP2 close failed: {exc}")
             return
         self.risk.position.qty -= close_qty
         pnl_part = _calc_pnl(self.risk.position.side, self.risk.position.avg_price, price, close_qty)
@@ -788,9 +796,9 @@ class SymbolEngine:
             )
         except InvalidRequestError as exc:
             if "110017" in str(exc):
-                print(f"[{self.symbol}] ℹ️ Close order rejected: {exc}")
+                logger.info(f"[{self.symbol}] ℹ️ Close order rejected: {exc}")
             else:
-                print(f"[{self.symbol}] ⚠️ close_order failed: {exc}")
+                logger.info(f"[{self.symbol}] ⚠️ close_order failed: {exc}")
                 return
         pnl_part = _calc_pnl(self.risk.position.side, self.risk.position.avg_price, mkt_price, qty_close)
         self.risk.realized_pnl += pnl_part
@@ -827,7 +835,7 @@ class SymbolEngine:
                     orderId=self.sl_order_id,
                 )
             except Exception as exc:
-                print(f"[{self.symbol}] ⚠️ SL cancel failed: {exc}")
+                logger.info(f"[{self.symbol}] ⚠️ SL cancel failed: {exc}")
             finally:
                 # Clear even if cancel failed to avoid repeated 110001 errors
                 self.sl_order_id = None
@@ -858,10 +866,10 @@ class SymbolEngine:
                 self.sl_order_id = order_id
                 self.current_sl_price = sl_price
             else:
-                print(f"[{self.symbol}] ⚠️ SL not created: {resp}")
+                logger.info(f"[{self.symbol}] ⚠️ SL not created: {resp}")
                 self.sl_order_id = None
         except Exception as exc:
-            print(f"[{self.symbol}] SL move failed: {exc}")
+            logger.info(f"[{self.symbol}] SL move failed: {exc}")
             self.sl_order_id = None
 
     async def _cancel_all_active_orders(self):

@@ -1,15 +1,18 @@
 import asyncio
-import sys, os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import os
+import sys
 import types
+from collections import namedtuple
+
+import pytest
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 pybit = types.ModuleType("pybit")
 pybit.exceptions = types.SimpleNamespace(InvalidRequestError=Exception)
 sys.modules.setdefault("pybit", pybit)
 sys.modules.setdefault("pybit.exceptions", pybit.exceptions)
-from collections import namedtuple
-import pytest
 
-from src.core.data import Bar
+from src.core.data import Bar  # noqa: E402
 
 Trade = namedtuple("Trade", "price qty ts")
 

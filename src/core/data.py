@@ -34,12 +34,12 @@ class OHLCCollector:
             self._emit(bar)
             self._bar = Bar(price, price, price, price, qty, bucket, bucket + self.interval)
             return
-        o, h, l, c, v, s, e = self._bar
-        h = max(h, price)
-        l = min(l, price)
-        c = price
-        v += qty
-        self._bar = Bar(o, h, l, c, v, s, e)
+        open_, high, low, close, vol, start, end = self._bar
+        high = max(high, price)
+        low = min(low, price)
+        close = price
+        vol += qty
+        self._bar = Bar(open_, high, low, close, vol, start, end)
 
 
 """
