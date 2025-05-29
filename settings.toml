@@ -29,28 +29,28 @@ dca_risk_multiplier       = 1.40
 
 # — SL / TP / Trailing —
 soft_sl_percent           = -1.5
-take_profit_percent       = 0.40
+take_profit_percent       = 0.90
 tp1_percent               = 0.35
 tp1_close_ratio           = 0.45
 tp2_percent               = 0.70
 tp2_close_ratio           = 0.30
 trailing_distance_percent = 0.20
-break_even_after_minutes  = 15
+break_even_after_minutes  = 0
 min_profit_to_be          = 0.10
 
 # — опциональные фильтры (старый код) —
-enable_rsi_filter         = false
+enable_rsi_filter         = true
 rsi_period                = 14
 rsi_overbought            = 70.0
 rsi_oversold              = 30.0
 
-use_adx_filter            = false
+use_adx_filter            = true
 adx_period                = 14
 adx_threshold             = 25.0
 
 # — хедж —
 enable_hedging            = true
-max_hedges                = 1
+max_hedges                = 5
 hedge_delay_seconds       = 2
 
 ########################  Multi-time-frame filter  #############################
