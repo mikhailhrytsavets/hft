@@ -90,6 +90,12 @@ class MultiTFSettings(BaseModel):
     update_seconds: int = 30
     trend_confirm_bars: int = 3
 
+class SymbolParams(BaseModel):
+    atr_period: int = 14
+    bb_dev: float = 2.0
+    dca_max: int = 2
+    hedge_ratio: float = 0.50
+
 class Settings(BaseModel):
     bybit: BybitSettings
     trading: TradingSettings
@@ -97,7 +103,10 @@ class Settings(BaseModel):
     telegram: TelegramSettings
     entry_score: EntryScoreSettings
     multi_tf: MultiTFSettings = MultiTFSettings()
+    symbol_params: dict[str, SymbolParams] = {}
 
 
 _SETTINGS_FILE = Path(__file__).resolve().parent.parent / "settings.toml"
-settings = Settings(**tomllib.load(open(_SETTINGS_FILE, "rb")))
+raw = tomllib.load(open(_SETTINGS_FILE, "rb"))
+sym_raw = raw.pop("symbol_params", {})
+settings = Settings(**raw, symbol_params={k: SymbolParams(**v) for k, v in sym_raw.items()})
