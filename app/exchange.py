@@ -134,6 +134,41 @@ class BybitClient:
                     continue
                 raise
 
+    async def create_limit_order(
+        self,
+        side: str,
+        qty: float,
+        price: float,
+        reduce_only: bool = False,
+    ):
+        """Place a limit order with a unique ``orderLinkId``."""
+        if not self.place_orders:
+            print(
+                f"[{self.symbol}] 🚫 create_limit_order suppressed: {side} {qty} @ {price}"
+            )
+            return {}
+        from pybit.exceptions import InvalidRequestError
+        link_id = self.gen_link_id("lmt")
+        while qty > 0:
+            try:
+                return await self.place_order(
+                    category="linear",
+                    symbol=self.symbol,
+                    side=side,
+                    orderType="Limit",
+                    qty=qty,
+                    price=price,
+                    timeInForce="GTC",
+                    reduceOnly=reduce_only,
+                    orderLinkId=link_id,
+                )
+            except InvalidRequestError as e:
+                if "max. limit" in str(e):
+                    qty = math.floor(qty * 0.8)
+                    print(f"[{self.symbol}] 🔄 qty↓ → {qty}")
+                    continue
+                raise
+
     async def create_reduce_only_sl(
         self,
         side: str,

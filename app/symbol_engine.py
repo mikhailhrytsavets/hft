@@ -219,16 +219,6 @@ class SymbolEngine:
                 self.tp_order_id = o["orderId"]  # keep the first found
                 print(f"[{self.symbol}] 🧠 Keeping existing TP order = {self.tp_order_id}")
                 continue
-            if (
-                o.get("reduceOnly")
-                and o["orderType"] == "Market"
-                and o.get("triggerPrice")
-                and not self.sl_order_id
-            ):
-                self.sl_order_id = o["orderId"]
-                self.current_sl_price = float(o["triggerPrice"])
-                print(f"[{self.symbol}] 🧠 Restored SL order = {self.sl_order_id}")
-                continue
             # otherwise cancel
             try:
                 self.client.http.cancel_order(category="linear", symbol=self.symbol, orderId=o["orderId"])
@@ -567,7 +557,7 @@ class SymbolEngine:
         except Exception as exc:
             print(f"[{self.symbol}] Qty calc failed: {exc}")
             return
-        await self.client.create_market_order(side, qty)
+        await self.client.create_limit_order(side, qty, price)
         await notify_telegram(f"📥 Entry {self.symbol} {side} qty={qty}")
 
         RiskManager.active_positions.add(self.symbol)
@@ -635,7 +625,7 @@ class SymbolEngine:
         side_flip = "Sell" if side == "Buy" else "Buy"
         await self._close_position("SOFT_SL", price)
         try:
-            await self.client.create_market_order(side_flip, hedge_qty)
+            await self.client.create_limit_order(side_flip, hedge_qty, price)
         except Exception as exc:
             print(f"[{self.symbol}] Hedge failed: {exc}")
             return
@@ -668,7 +658,7 @@ class SymbolEngine:
         except Exception as exc:
             print(f"[{self.symbol}] DCA qty calc failed: {exc}")
             return
-        await self.client.create_market_order(self.risk.position.side, qty)
+        await self.client.create_limit_order(self.risk.position.side, qty, price)
         RiskManager.position_volumes[self.symbol] = (
             RiskManager.position_volumes.get(self.symbol, 0.0) + qty * price
         )
@@ -694,13 +684,11 @@ class SymbolEngine:
         if close_qty > 0:
             side_close = "Sell" if self.risk.position.side == "Buy" else "Buy"
             try:
-                await self.client.place_order(
-                    category="linear",
-                    symbol=self.symbol,
-                    side=side_close,
-                    orderType="Market",
-                    qty=close_qty,
-                    reduceOnly=True,
+                await self.client.create_limit_order(
+                    side_close,
+                    close_qty,
+                    price,
+                    reduce_only=True,
                 )
             except Exception as exc:
                 print(f"[{self.symbol}] TP1 close failed: {exc}")
@@ -743,13 +731,11 @@ class SymbolEngine:
             return
         side_close = "Sell" if self.risk.position.side == "Buy" else "Buy"
         try:
-            await self.client.place_order(
-                category="linear",
-                symbol=self.symbol,
-                side=side_close,
-                orderType="Market",
-                qty=close_qty,
-                reduceOnly=True,
+            await self.client.create_limit_order(
+                side_close,
+                close_qty,
+                price,
+                reduce_only=True,
             )
         except Exception as exc:
             print(f"[{self.symbol}] TP2 close failed: {exc}")
@@ -778,13 +764,11 @@ class SymbolEngine:
         if qty_close <= 0:
             return
         try:
-            await self.client.place_order(
-                category="linear",
-                symbol=self.symbol,
-                side=side_close,
-                orderType="Market",
-                qty=qty_close,
-                reduceOnly=True,
+            await self.client.create_limit_order(
+                side_close,
+                qty_close,
+                mkt_price,
+                reduce_only=True,
             )
         except InvalidRequestError as exc:
             if "110017" in str(exc):
@@ -818,24 +802,10 @@ class SymbolEngine:
         self.current_sl_price = None
 
     async def _set_sl(self, qty: float, sl_price: float) -> None:
-        """Place or move a real stop-loss order on the exchange."""
-        if self.sl_order_id:
-            try:
-                await self.client.cancel_order(
-                    category="linear",
-                    symbol=self.symbol,
-                    orderId=self.sl_order_id,
-                )
-            except Exception as exc:
-                print(f"[{self.symbol}] ⚠️ SL cancel failed: {exc}")
-            finally:
-                # Clear even if cancel failed to avoid repeated 110001 errors
-                self.sl_order_id = None
-
+        """Record stop price without placing orders on the exchange."""
         step = self.precision.step(self.client.http, self.symbol)
         qty_r = snap_qty(qty, step)
 
-        # Ensure stop price is valid for the current trigger direction
         current = self.close_window[-1] if self.close_window else None
         if current is not None:
             if self.risk.position.side == "Buy" and sl_price >= current:
@@ -843,26 +813,8 @@ class SymbolEngine:
             elif self.risk.position.side == "Sell" and sl_price <= current:
                 sl_price = current * 1.001
 
-        # Generate a fresh orderLinkId for each new SL order to ensure
-        # uniqueness and avoid duplicate errors from the API
-        self.sl_link_id = self.client.gen_link_id("sl")
-        try:
-            resp = await self.client.create_reduce_only_sl(
-                self.risk.position.side,
-                qty_r,
-                sl_price,
-                order_link_id=self.sl_link_id,
-            )
-            order_id = resp.get("result", {}).get("orderId")
-            if order_id:
-                self.sl_order_id = order_id
-                self.current_sl_price = sl_price
-            else:
-                print(f"[{self.symbol}] ⚠️ SL not created: {resp}")
-                self.sl_order_id = None
-        except Exception as exc:
-            print(f"[{self.symbol}] SL move failed: {exc}")
-            self.sl_order_id = None
+        self.current_sl_price = sl_price
+        self.sl_order_id = None
 
     async def _cancel_all_active_orders(self):
         try:
