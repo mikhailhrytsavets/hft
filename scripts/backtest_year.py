@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Run:
-  python scripts/backtest_month.py --symbols BTCUSDT,ETHUSDT --month 2025-05 \
+  python scripts/backtest_year.py --symbols BTCUSDT,ETHUSDT --year 2025 \
     --data-dir data --equity 10000 --out-dir backtests
 """
 import argparse
@@ -46,44 +46,48 @@ async def backtest(
 
 async def main(args) -> None:
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()]
-    results = []
-    aggregate_returns = []
     out_dir = pathlib.Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    for sym in symbols:
-        csv_file = pathlib.Path(args.data_dir) / f"{sym}_{args.month}_kline5m.csv"
-        res = await backtest(sym, csv_file, args.month, args.equity, out_dir)
-        results.append(res)
-        aggregate_returns.extend(res["returns"])
-        print(
-            f"{sym} trades={res['trades']} pnl={res['pnl']:.2f} "
-            f"sharpe={res['sharpe']:.2f} pf={res['pf']:.2f} dd={res['dd']:.2f}"
-        )
+    all_results = []
+    aggregate_returns = []
+    for month in range(1, 13):
+        period = f"{args.year}-{month:02d}"
+        for sym in symbols:
+            csv_file = pathlib.Path(args.data_dir) / f"{sym}_{period}_kline5m.csv"
+            if not csv_file.exists():
+                continue
+            res = await backtest(sym, csv_file, period, args.equity, out_dir)
+            all_results.append(res)
+            aggregate_returns.extend(res["returns"])
+            print(
+                f"{sym} {period} trades={res['trades']} pnl={res['pnl']:.2f} "
+                f"sharpe={res['sharpe']:.2f} pf={res['pf']:.2f} dd={res['dd']:.2f}"
+            )
 
     agg_equity = [0.0]
     for r in aggregate_returns:
         agg_equity.append(agg_equity[-1] + r)
     aggregate = {
-        "trades": sum(r["trades"] for r in results),
+        "trades": sum(r["trades"] for r in all_results),
         "pnl": agg_equity[-1],
         "sharpe": sharpe(agg_equity),
         "pf": profit_factor([{"pnl": r} for r in aggregate_returns]),
         "dd": max_drawdown(agg_equity),
     }
     print(
-        f"ALL trades={aggregate['trades']} pnl={aggregate['pnl']:.2f} "
+        f"YEAR trades={aggregate['trades']} pnl={aggregate['pnl']:.2f} "
         f"sharpe={aggregate['sharpe']:.2f} pf={aggregate['pf']:.2f} "
         f"dd={aggregate['dd']:.2f}"
     )
-    summary_path = out_dir / f"summary_{args.month}.json"
+    summary_path = out_dir / f"summary_{args.year}.json"
     with open(summary_path, "w") as f:
-        json.dump({"symbols": results, "aggregate": aggregate}, f, indent=2)
+        json.dump({"symbols": all_results, "aggregate": aggregate}, f, indent=2)
 
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--symbols", required=True)
-    p.add_argument("--month", required=True)
+    p.add_argument("--year", type=int, required=True)
     p.add_argument("--data-dir", default="data")
     p.add_argument("--equity", type=float, default=10000)
     p.add_argument("--out-dir", default="backtests")
