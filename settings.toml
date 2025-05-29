@@ -37,7 +37,7 @@ tp2_percent               = 0.70
 tp2_close_ratio           = 0.30
 trailing_distance_percent = 0.20
 break_even_after_minutes  = 0
-min_profit_to_be          = 0.10
+min_profit_to_be          = 0.30
 
 # — опциональные фильтры (старый код) —
 enable_rsi_filter         = true
