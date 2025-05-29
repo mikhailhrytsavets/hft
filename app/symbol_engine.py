@@ -8,6 +8,7 @@ import statistics
 
 from app.indicators import CandleAggregator
 from src.core.data import OHLCCollector, Bar
+from src.core.indicators import compute_adx, compute_adx_info
 
 from pybit.exceptions import InvalidRequestError
 from app.config import settings
@@ -70,79 +71,6 @@ async def _fetch_closed_pnl(
     return None
 
 
-def compute_adx(prices: list[float], period: int) -> float | None:
-    """Return ADX value with Wilder smoothing based on close prices."""
-    if len(prices) < period * 2:
-        return None
-
-    ups: list[float] = []
-    downs: list[float] = []
-    trs: list[float] = []
-    for i in range(1, len(prices)):
-        diff = prices[i] - prices[i - 1]
-        ups.append(max(diff, 0.0))
-        downs.append(max(-diff, 0.0))
-        trs.append(abs(diff))
-
-    atr = sum(trs[:period])
-    plus_dm = sum(ups[:period])
-    minus_dm = sum(downs[:period])
-    if atr == 0:
-        return 0.0
-    plus_di = 100 * plus_dm / atr
-    minus_di = 100 * minus_dm / atr
-    di_sum = plus_di + minus_di
-    dx = 0.0 if di_sum == 0 else abs(plus_di - minus_di) / di_sum * 100
-    adx = dx
-
-    for i in range(period, len(trs)):
-        atr = atr - (atr / period) + trs[i]
-        plus_dm = plus_dm - (plus_dm / period) + ups[i]
-        minus_dm = minus_dm - (minus_dm / period) + downs[i]
-        plus_di = 100 * plus_dm / atr if atr else 0.0
-        minus_di = 100 * minus_dm / atr if atr else 0.0
-        di_sum = plus_di + minus_di
-        dx = 0.0 if di_sum == 0 else abs(plus_di - minus_di) / di_sum * 100
-        adx = (adx * (period - 1) + dx) / period
-
-    return adx
-
-def compute_adx_info(prices: list[float], period: int) -> tuple[float | None, float | None, float | None]:
-    """Return (ADX, +DI, -DI) using Wilder smoothing."""
-    if len(prices) < period * 2:
-        return None, None, None
-
-    ups: list[float] = []
-    downs: list[float] = []
-    trs: list[float] = []
-    for i in range(1, len(prices)):
-        diff = prices[i] - prices[i - 1]
-        ups.append(max(diff, 0.0))
-        downs.append(max(-diff, 0.0))
-        trs.append(abs(diff))
-
-    atr = sum(trs[:period])
-    plus_dm = sum(ups[:period])
-    minus_dm = sum(downs[:period])
-    if atr == 0:
-        return 0.0, 0.0, 0.0
-    plus_di = 100 * plus_dm / atr
-    minus_di = 100 * minus_dm / atr
-    di_sum = plus_di + minus_di
-    dx = 0.0 if di_sum == 0 else abs(plus_di - minus_di) / di_sum * 100
-    adx = dx
-
-    for i in range(period, len(trs)):
-        atr = atr - (atr / period) + trs[i]
-        plus_dm = plus_dm - (plus_dm / period) + ups[i]
-        minus_dm = minus_dm - (minus_dm / period) + downs[i]
-        plus_di = 100 * plus_dm / atr if atr else 0.0
-        minus_di = 100 * minus_dm / atr if atr else 0.0
-        di_sum = plus_di + minus_di
-        dx = 0.0 if di_sum == 0 else abs(plus_di - minus_di) / di_sum * 100
-        adx = (adx * (period - 1) + dx) / period
-
-    return adx, plus_di, minus_di
 
 
 # ---------------------------------------------------------------------------
