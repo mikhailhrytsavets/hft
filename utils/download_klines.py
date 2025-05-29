@@ -5,11 +5,11 @@ Examples
 --------
 Download one month of BTCUSDT data::
 
-    python utils/download_klines.py --symbol BTCUSDT --month 2025-05
+    python -m utils.download_klines --symbol BTCUSDT --month 2025-05
 
 Download an entire year (creates 12 monthly CSV files)::
 
-    python utils/download_klines.py --symbol BTCUSDT --year 2025
+    python -m utils.download_klines --symbol BTCUSDT --year 2025
 """
 
 from __future__ import annotations
