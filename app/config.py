@@ -109,6 +109,10 @@ class Settings(BaseModel):
 
 
 _SETTINGS_FILE = Path(__file__).resolve().parent.parent / "settings.toml"
-raw = tomllib.load(open(_SETTINGS_FILE, "rb"))
+try:
+    with open(_SETTINGS_FILE, "rb") as f:
+        raw = tomllib.load(f)
+except tomllib.TOMLDecodeError as exc:
+    raise RuntimeError(f"Failed to parse {_SETTINGS_FILE}: {exc}") from exc
 sym_raw = raw.pop("symbol_params", {})
 settings = Settings(**raw, symbol_params={k: SymbolParams(**v) for k, v in sym_raw.items()})
