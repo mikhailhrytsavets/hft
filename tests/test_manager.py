@@ -16,3 +16,13 @@ def test_tp1_trailing():
     assert trail and trail > 0
     pm.on_tick(trail - 0.01)
     assert pm.state.qty == 0
+
+
+def test_add_updates_entry():
+    pm = PositionManager()
+    pm.open(side="LONG", qty=1, entry=100, atr=2)
+    pm.add(1, 98)
+    assert pm.state.qty == 2
+    assert pm.initial_qty == 2
+    assert pm.state.entry == pytest.approx(99, rel=1e-2)
+    assert pm.sl == pytest.approx(pm.state.entry - pm.sl_atr * pm.state.atr)

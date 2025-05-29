@@ -8,6 +8,7 @@ from src.market_features import MarketFeatures
 from src.core import indicators
 from src.strategy.bounce_entry import BounceEntry, EntrySignal
 from src.strategy.dca import SmartDCA
+from src.strategy.manager import PositionManager
 
 class SymbolEngine:
     def __init__(self, symbol: str) -> None:
@@ -19,7 +20,8 @@ class SymbolEngine:
         self.lows: Deque[float] = deque(maxlen=50)
         self.closes: Deque[float] = deque(maxlen=50)
         self.volumes: Deque[float] = deque(maxlen=20)
-        self.position: dict | None = None
+        self.pm = PositionManager()
+        self.dca_fills = 0
 
     async def _on_bar(self, bar: Bar) -> None:
         await self.market.on_bar(bar)
@@ -41,16 +43,14 @@ class SymbolEngine:
             adx_v,
         )
 
-        if self.position is None and sig in (EntrySignal.LONG, EntrySignal.SHORT):
-            self.position = {
-                "side": "LONG" if sig is EntrySignal.LONG else "SHORT",
-                "entry": bar.close,
-                "fills": 0,
-            }
-        elif self.position is not None:
-            side = self.position["side"]
+        if self.pm.state.qty == 0 and sig in (EntrySignal.LONG, EntrySignal.SHORT):
+            side = "LONG" if sig is EntrySignal.LONG else "SHORT"
+            self.pm.open(side=side, qty=1, entry=bar.close, atr=atr_v)
+            self.dca_fills = 0
+        elif self.pm.state.qty > 0:
+            side = self.pm.state.side or "LONG"
             if SmartDCA.allowed(
-                self.position["fills"],
+                self.dca_fills,
                 self.symbol,
                 risk_pct_after_fill=1.0,
                 adx=adx_v,
@@ -60,9 +60,15 @@ class SymbolEngine:
                 side=side,
             ):
                 target = SmartDCA.next_price(
-                    self.position["entry"], atr_v, self.position["fills"] + 1, self.symbol, side
+                    self.pm.state.entry, atr_v, self.dca_fills + 1, self.symbol, side
                 )
                 if (side == "LONG" and bar.close <= target) or (
                     side == "SHORT" and bar.close >= target
                 ):
-                    self.position["fills"] += 1
+                    self.pm.add(1, bar.close)
+                    self.dca_fills += 1
+
+            self.pm.on_tick(bar.close)
+            if self.pm.state.qty == 0:
+                self.dca_fills = 0
+
