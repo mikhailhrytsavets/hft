@@ -25,7 +25,8 @@ class RiskGuard:
         if pct >= self.PROFIT_LOCK_PCT:
             self.profit_lock = True
 
-    def allow_new_position(self, risk_pct: float) -> bool:
+    def allow_new_position(self, symbol: str, risk_pct: float) -> bool:
+        """Return True if opening a new position is allowed."""
         if self.dd_lock or self.profit_lock:
             return False
         if len(self.account.open_positions) >= self.MAX_POSITIONS:

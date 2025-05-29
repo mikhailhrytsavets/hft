@@ -1,6 +1,9 @@
 import aiohttp
 import asyncio
+import logging
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 _session: aiohttp.ClientSession | None = None
 
@@ -34,16 +37,22 @@ async def notify_telegram(msg: str, max_retries: int = 3) -> bool:
                 if response.status == 200:
                     result = await response.json()
                     if result.get("ok"):
-                        print(f"✅ Telegram message sent: {msg[:50]}...")
+                        logger.info(f"✅ Telegram message sent: {msg[:50]}...")
                         return True
                     else:
-                        print(f"❌ Telegram API error: {result.get('description')}")
+                        logger.error(
+                            f"❌ Telegram API error: {result.get('description')}"
+                        )
                 else:
-                    print(f"❌ Telegram HTTP error: {response.status}")
+                    logger.error(f"❌ Telegram HTTP error: {response.status}")
         except asyncio.TimeoutError:
-            print(f"⚠️ Telegram timeout (attempt {attempt + 1}/{max_retries})")
+            logger.warning(
+                f"⚠️ Telegram timeout (attempt {attempt + 1}/{max_retries})"
+            )
         except Exception as e:
-            print(f"❌ Telegram error (attempt {attempt + 1}/{max_retries}): {e}")
+            logger.error(
+                f"❌ Telegram error (attempt {attempt + 1}/{max_retries}): {e}"
+            )
         
         if attempt < max_retries - 1:
             await asyncio.sleep(1)  # Пауза перед следующей попыткой
