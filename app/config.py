@@ -8,6 +8,7 @@ class BybitSettings(BaseModel):
     symbols: list[str]
     testnet: bool = False
     demo: bool = False
+    place_orders: bool = True
     channel_type: str = "linear"
 
 class TradingSettings(BaseModel):

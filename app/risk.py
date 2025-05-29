@@ -164,6 +164,7 @@ class RiskManager:
                             settings.bybit.testnet,
                             settings.bybit.demo,
                             settings.bybit.channel_type,
+                            settings.bybit.place_orders,
                         )
                         self._htf_client = client
                     resp = client.http.get_kline(
