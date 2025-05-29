@@ -9,6 +9,19 @@ try:  # optional NumPy dependency
 except Exception:  # pragma: no cover - fallback when numpy missing
     np = None
 
+try:
+    from .indicators_vectorized import (
+        compute_rsi as _vec_compute_rsi,
+        atr as _vec_atr,
+        compute_adx as _vec_compute_adx,
+        _rolling_sum as _vec_roll_sum,
+    )
+except Exception:  # pragma: no cover - when numpy missing / import fail
+    _vec_compute_rsi = None  # type: ignore
+    _vec_atr = None  # type: ignore
+    _vec_compute_adx = None  # type: ignore
+    _vec_roll_sum = None  # type: ignore
+
 # ---------------------------------------------------------------------------
 # PHASE 1 AUDIT SUMMARY
 # ---------------------------------------------------------------------------
@@ -51,6 +64,11 @@ def compute_rsi(closes: Sequence[float], period: int) -> float | None:
     """Return RSI calculated using Wilder smoothing."""
     if len(closes) < period + 1:
         return None
+    if np is not None and _vec_compute_rsi is not None:
+        arr = _vec_compute_rsi(np.asarray(closes, dtype=float), period)
+        val = arr[-1]
+        return None if np.isnan(val) else float(val)
+
     if np is not None:
         arr = np.asarray(closes, dtype=float)
         diff = np.diff(arr)
@@ -145,6 +163,16 @@ def atr(
     """Return the latest ATR value using Wilder smoothing."""
     if len(closes) < period + 1:
         return 0.0
+    if np is not None and _vec_atr is not None:
+        arr = _vec_atr(
+            np.asarray(highs, dtype=float),
+            np.asarray(lows, dtype=float),
+            np.asarray(closes, dtype=float),
+            period,
+        )
+        val = arr[-1]
+        return 0.0 if np.isnan(val) else float(val)
+
     if np is not None:
         h = np.asarray(highs, dtype=float)
         l = np.asarray(lows, dtype=float)
@@ -167,6 +195,16 @@ def adx(
     """Return the latest ADX value using Wilder smoothing."""
     if len(closes) < period + 1:
         return 0.0
+    if np is not None and _vec_compute_adx is not None:
+        arr = _vec_compute_adx(
+            np.asarray(highs, dtype=float),
+            np.asarray(lows, dtype=float),
+            np.asarray(closes, dtype=float),
+            period,
+        )
+        val = arr[-1]
+        return 0.0 if np.isnan(val) else float(val)
+
     if np is not None:
         h = np.asarray(highs, dtype=float)
         l = np.asarray(lows, dtype=float)
