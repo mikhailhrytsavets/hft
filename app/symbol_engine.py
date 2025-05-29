@@ -157,6 +157,7 @@ class SymbolEngine:
         # Unique orderLinkId for stop-loss orders will be generated per order
         # to avoid Bybit's "duplicate" error on reused IDs
         self.sl_link_id = f"{symbol}-sl"
+        self.entry_order_id: Optional[str] = None
 
         # Streaming will be attached by SymbolEngineManager
         self.manager = None  # set by SymbolEngineManager
@@ -504,14 +505,19 @@ class SymbolEngine:
         except Exception as exc:
             print(f"[{self.symbol}] Qty calc failed: {exc}")
             return
-        await self.client.create_limit_order(side, qty, price)
+        resp = await self.client.create_limit_order(side, qty, price)
+        order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
+        if order_id:
+            self.entry_order_id = order_id
+            await self._wait_order_fill(order_id)
+            self.entry_order_id = None
         await notify_telegram(f"📥 Entry {self.symbol} {side} qty={qty}")
 
         RiskManager.active_positions.add(self.symbol)
         RiskManager.position_volumes[self.symbol] = volume
 
         self.risk.position.side = side
-        self.risk.position.qty  = qty
+        self.risk.position.qty = qty
         self.risk.position.avg_price = price
         self.risk.position.open_time = datetime.utcnow()
         self.risk.reset_trade()
