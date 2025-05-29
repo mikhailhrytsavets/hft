@@ -55,6 +55,7 @@ class TradingSettings(BaseModel):
     enable_hedging: bool = False
     max_hedges: int = 1
     hedge_delay_seconds: float = 0.0
+    candle_interval_sec: int = 15
     enable_hedge_adx_filter: bool = False
     hedge_adx_threshold: float = 20.0
     hedge_size_ratio: float = 1.0

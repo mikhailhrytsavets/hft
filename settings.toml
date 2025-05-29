@@ -53,6 +53,7 @@ adx_threshold             = 25.0
 enable_hedging            = true
 max_hedges                = 5
 hedge_delay_seconds       = 2
+candle_interval_sec       = 15     # длина свечи (с) для быстрой инициализации
 
 ########################  Multi-time-frame filter  #############################
 [multi_tf]
