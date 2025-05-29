@@ -71,6 +71,13 @@ async def _fetch_closed_pnl(
     return None
 
 
+def _calc_pnl(side: str, entry_price: float, exit_price: float, qty: float) -> float:
+    """Return PnL in quote currency for ``qty`` closed at ``exit_price``."""
+    if side == "Buy":
+        return (exit_price - entry_price) * qty
+    return (entry_price - exit_price) * qty
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -669,6 +676,8 @@ class SymbolEngine:
         new_avg   = (self.risk.position.avg_price * self.risk.position.qty + price * qty) / total_qty
         self.risk.position.qty = total_qty
         self.risk.position.avg_price = new_avg
+        self.risk.initial_qty = total_qty
+        self.risk.entry_value += qty * price
         self.risk.last_dca_price = price
         await notify_telegram(f"➕ DCA {self.symbol}: +{qty} → avg {new_avg:.4f}")
 
@@ -696,17 +705,21 @@ class SymbolEngine:
                 print(f"[{self.symbol}] TP1 close failed: {exc}")
                 return
             self.risk.position.qty -= close_qty
+            pnl_part = _calc_pnl(self.risk.position.side, self.risk.position.avg_price, price, close_qty)
+            self.risk.realized_pnl += pnl_part
             await notify_telegram(f"💰 TP1 {self.symbol}: {close_qty} closed")
-            pnl = await _fetch_closed_pnl(self.client, self.symbol)
-            if pnl:
-                net_usdt, pct = pnl
-                emoji = "🟢" if net_usdt > 0 else "🔴"
-                sign  = "+" if net_usdt > 0 else ""
-                msg = (
-                    f"{emoji} <b>TP1 {self.symbol}</b>\n"
-                    f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{pct:.2f}%)\n"
-                )
-                await notify_telegram(msg)
+            total_pct = (
+                self.risk.realized_pnl / self.risk.entry_value * 100
+                if self.risk.entry_value else 0.0
+            )
+            net_usdt = self.risk.realized_pnl
+            emoji = "🟢" if net_usdt > 0 else "🔴"
+            sign  = "+" if net_usdt > 0 else ""
+            msg = (
+                f"{emoji} <b>TP1 {self.symbol}</b>\n"
+                f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
+            )
+            await notify_telegram(msg)
         # move SL to breakeven with a small profit buffer
         be = settings.trading.min_profit_to_be
         if be:
@@ -741,17 +754,21 @@ class SymbolEngine:
             print(f"[{self.symbol}] TP2 close failed: {exc}")
             return
         self.risk.position.qty -= close_qty
+        pnl_part = _calc_pnl(self.risk.position.side, self.risk.position.avg_price, price, close_qty)
+        self.risk.realized_pnl += pnl_part
         await notify_telegram(f"💰 TP2 {self.symbol}: {close_qty} closed")
-        pnl = await _fetch_closed_pnl(self.client, self.symbol)
-        if pnl:
-            net_usdt, pct = pnl
-            emoji = "🟢" if net_usdt > 0 else "🔴"
-            sign = "+" if net_usdt > 0 else ""
-            msg = (
-                f"{emoji} <b>TP2 {self.symbol}</b>\n"
-                f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{pct:.2f}%)\n"
-            )
-            await notify_telegram(msg)
+        total_pct = (
+            self.risk.realized_pnl / self.risk.entry_value * 100
+            if self.risk.entry_value else 0.0
+        )
+        net_usdt = self.risk.realized_pnl
+        emoji = "🟢" if net_usdt > 0 else "🔴"
+        sign = "+" if net_usdt > 0 else ""
+        msg = (
+            f"{emoji} <b>TP2 {self.symbol}</b>\n"
+            f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
+        )
+        await notify_telegram(msg)
 
     async def _close_position(self, exit_signal: str, mkt_price: float) -> None:
         side_close = "Sell" if self.risk.position.side == "Buy" else "Buy"
@@ -774,18 +791,22 @@ class SymbolEngine:
             else:
                 print(f"[{self.symbol}] ⚠️ close_order failed: {exc}")
                 return
-        pnl = await _fetch_closed_pnl(self.client, self.symbol)
-        if pnl:
-            net_usdt, pct = pnl
-            emoji = "🟢" if net_usdt > 0 else "🔴"
-            sign  = "+" if net_usdt > 0 else ""
-            msg = (
-                f"{emoji} <b>{exit_signal} {self.symbol}</b>\n"
-                f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{pct:.2f}%)\n"
-            )
-            await notify_telegram(msg)
-            async with DB() as db:
-                await db.log(side_close, qty_close, mkt_price, self.risk.position.avg_price, net_usdt)
+        pnl_part = _calc_pnl(self.risk.position.side, self.risk.position.avg_price, mkt_price, qty_close)
+        self.risk.realized_pnl += pnl_part
+        total_pct = (
+            self.risk.realized_pnl / self.risk.entry_value * 100
+            if self.risk.entry_value else 0.0
+        )
+        net_usdt = self.risk.realized_pnl
+        emoji = "🟢" if net_usdt > 0 else "🔴"
+        sign  = "+" if net_usdt > 0 else ""
+        msg = (
+            f"{emoji} <b>{exit_signal} {self.symbol}</b>\n"
+            f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
+        )
+        await notify_telegram(msg)
+        async with DB() as db:
+            await db.log(side_close, qty_close, mkt_price, self.risk.position.avg_price, net_usdt)
         self.risk.position.reset()
         self.risk.reset_trade()
         RiskManager.active_positions.discard(self.symbol)
