@@ -1,48 +1,35 @@
 ################################################################################
-#               Settings for high-frequency intraday scalping bot             #
-#          Pairs: BTC, ETH, SOL, DOGE, SUI, XRP, ADA  •  HFT edition          #
+#                         HFT-bounce — settings.toml                           #
 ################################################################################
 
-############################  Connection / Exchange   #############################
+###########################  Exchange connection  ##############################
 [bybit]
-api_key    = "zf72Bea3s8kMDd031d"
-api_secret = "XMfDkNDUNRXWbSAkkSY5Prvz59lWaWIIzgw5"
-testnet    = false
-demo       = true
-channel_type = "linear"
-symbols = [ "BTCUSDT","ETHUSDT","SOLUSDT","DOGEUSDT","SUIUSDT","XRPUSDT","ADAUSDT" ]
+api_key       = "zf72Bea3s8kMDd031d"          # ← замените при необходимости
+api_secret    = "XMfDkNDUNRXWbSAkkSY5Prvz59lWaWIIzgw5"
+testnet       = false
+demo          = true
+channel_type  = "linear"
+symbols       = [
+  "BTCUSDT","ETHUSDT","SOLUSDT","DOGEUSDT",
+  "SUIUSDT","XRPUSDT","ADAUSDT","1000PEPEUSDT"
+]
 
-#############################     Core trade engine    #############################
+###############################  Core trading  #################################
 [trading]
-#––– risk / size –––#
-leverage                  = 50
-initial_risk_percent      = 0.3        # 0.15 % equity per entry
-max_position_risk_percent = 15.0        # hard cap ≤ 15 %  (incl. DCA)
+leverage                  = 50            # плечо Bybit
+initial_risk_percent      = 0.25          # риск первой сделки (% от equity)
+
+# — глобальный риск-кэп —
 enable_risk_cap           = true
+max_position_risk_percent = 20.0          # суммарный открытый риск ≤20 % equity
 
-#––– DCA –––#
-max_dca_levels       = 5                # max 2 adds
-dca_risk_multiplier  = 1.40             # gentle geometric growth
-enable_atr_dca       = false
-atr_dca_multiplier   = 1.0
-dca_step_percent     = 0.3             # tighten step for HFT
-max_dca_drawdown_percent  = 2.0
-dca_min_interval_minutes  = 5
-enable_dca_adx_filter     = true
-dca_adx_threshold         = 25.0
-dca_step_multiplier       = 1.5
-enable_dca_spread_filter = true
-dca_spread_threshold     = 3.0
-enable_dca_vbd_filter    = true
-dca_vbd_threshold        = 0.5
-enable_rsi_dca       = false
+# — DCA (SmartDCA всё равно применит свои капы) —
+max_dca_levels            = 5
+dca_risk_multiplier       = 1.40
 
-#––– SL / TP / time –––#
-soft_sl_percent         = -5          # tight soft-stop (-1.2 %)
-soft_sl_minutes         = 0             # time-based soft SL disabled
-enable_position_timeout = true
-max_position_minutes    = 0            # auto-exit after 30 min
-take_profit_percent     = 0.40          # fallback full TP (if no TP1)
+# — SL / TP / Trailing —
+soft_sl_percent           = -1.5
+take_profit_percent       = 0.40
 tp1_percent               = 0.35
 tp1_close_ratio           = 0.45
 tp2_percent               = 0.70
@@ -51,31 +38,22 @@ trailing_distance_percent = 0.20
 break_even_after_minutes  = 15
 min_profit_to_be          = 0.10
 
-#––– trailing –––#
-use_atr_trailing        = false
-atr_trailing_multiplier = 1.0
-break_even_after_percent = 0.0
+# — опциональные фильтры (старый код) —
+enable_rsi_filter         = false
+rsi_period                = 14
+rsi_overbought            = 70.0
+rsi_oversold              = 30.0
 
-#––– filters –––#
-enable_rsi_filter  = false
-rsi_period         = 14
-rsi_overbought     = 70.0
-rsi_oversold       = 30.0
-use_htf_filter     = false
-htf_interval       = "15m"
-enable_trend_mode  = false
-trend_adx_threshold= 20.0
-use_adx_filter     = false
-enable_time_filter = false              # торгуем 24/7
-enable_hedging     = true
+use_adx_filter            = false
+adx_period                = 14
+adx_threshold             = 25.0
+
+# — хедж —
+enable_hedging            = true
 max_hedges                = 1
 hedge_delay_seconds       = 2
-enable_hedge_adx_filter   = true
-hedge_adx_threshold       = 22.0
-hedge_size_ratio          = 0.50
-fallback_qty       = 0
 
-#############################  Multi-TF confirmation   #############################
+########################  Multi-time-frame filter  #############################
 [multi_tf]
 enable              = false
 intervals           = ["1m","3m","5m"]
@@ -83,27 +61,44 @@ weights             = { "1m" = 0.5, "3m" = 0.3, "5m" = 0.2 }
 update_seconds      = 15
 trend_confirm_bars  = 2
 
-#############################      Global limits       #############################
+#############################  Global risk  ####################################
 [risk]
-daily_drawdown_percent      = -5.0
-enable_daily_drawdown_guard = true
-daily_profit_percent        = 0.0       # <- no profit cap
-enable_daily_profit_guard   = false
-max_open_positions = 0                  # unlimited pairs
-max_total_volume   = 0.0
+daily_drawdown_percent       = -5.0
+enable_daily_drawdown_guard  = true
+daily_profit_percent         =  0.0
+enable_daily_profit_guard    = false
+max_open_positions           = 8            # фиксировано по ТЗ
 
-#############################     Telegram alerts      #############################
+###########################  Telegram notifier  ################################
 [telegram]
 bot_token = "7994411518:AAHpNIzjjN3TOl4TvYbEF7B2_Bxod3IxDTE"
 chat_id   = "-1002593601621"
 
-#############################     Entry-score model    #############################
+#########################  Entry-score parameters  #############################
 [entry_score]
-weights = { z=1.0, obi=0.8, vbd=0.6, spread=0.4, tflow=0.6, volatility=1.5 }
-long_threshold   = -1.5
-short_threshold  =  1.5
-threshold_k      =  1.8
-symbol_weights   = {}
+weights            = { z=1.0, obi=0.8, vbd=0.6, spread=0.4, tflow=0.6, volatility=1.5 }
+long_threshold     = -1.5
+short_threshold    =  1.5
+threshold_k        =  1.8
+symbol_weights     = {}
 symbol_threshold_k = {}
 
-#############################   Per-symbol overrides   #############################
+######################  Per-symbol overrides (symbol_params)  ##################
+# Дефолты из SymbolParams (если секция не указана):
+#   atr_period = 14, bb_dev = 2.0, dca_max = 2, hedge_ratio = 0.50
+
+[symbol_params.BTCUSDT]
+dca_max     = 3
+hedge_ratio = 0.50     # хедж ETH 50 %
+
+[symbol_params.ETHUSDT]
+dca_max     = 3
+hedge_ratio = 0.50     # хедж BTC 50 %
+
+[symbol_params.1000PEPEUSDT]
+bb_dev      = 2.5      # расширенный BB
+dca_max     = 1
+hedge_ratio = 0.30     # частичный хедж BTC 30 %
+
+# Остальные пары (SOL, DOGE, SUI, XRP, ADA) унаследуют дефолты.
+################################################################################
