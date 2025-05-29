@@ -153,6 +153,7 @@ class SymbolEngine:
         self.sl_link_id = f"{symbol}-sl"
 
         # Streaming will be attached by SymbolEngineManager
+        self.manager = None  # set by SymbolEngineManager
 
         # Restore running state (open position / TP) -----------------------
         self._restore_position()
@@ -405,7 +406,10 @@ class SymbolEngine:
             if current_bar:
                 sig = BounceEntry.check(current_bar, self.volume_window, self.close_window, settings.symbol_params.get(self.symbol, {}))
             if sig and self.risk.position.qty == 0:
-                await self._open_position(sig.value, price)
+                if self.manager:
+                    await self.manager._maybe_open_position(self, sig.value, price)
+                else:
+                    await self._open_position(sig.value, price)
                 continue
 
             mode = "range"
@@ -450,7 +454,10 @@ class SymbolEngine:
                     if htf == "DOWN" and direction == "LONG":
                         print(f"[{self.symbol}] 🚫 HTF filter")
                         continue
-                await self._open_position(direction, price)
+                if self.manager:
+                    await self.manager._maybe_open_position(self, direction, price)
+                else:
+                    await self._open_position(direction, price)
                 continue  # wait next tick
 
             # ---------------- Exit / DCA --------------------------------
@@ -800,6 +807,8 @@ class SymbolEngine:
         self.sl_order_id = None
         self.tp_order_id = None
         self.current_sl_price = None
+        if self.manager:
+            self.manager.position_closed(self)
 
     async def _set_sl(self, qty: float, sl_price: float) -> None:
         """Record stop price without placing orders on the exchange."""
