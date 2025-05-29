@@ -2,7 +2,7 @@ from __future__ import annotations
 """Indicator utilities used across the project."""
 
 from typing import Sequence, Tuple
-import numpy as np
+import statistics
 
 # ---------------------------------------------------------------------------
 # PHASE 1 AUDIT SUMMARY
@@ -46,12 +46,12 @@ def compute_rsi(closes: Sequence[float], period: int) -> float | None:
     """Return RSI calculated using Wilder smoothing."""
     if len(closes) < period + 1:
         return None
-    arr = np.asarray(closes, dtype=float)
-    diff = np.diff(arr)
-    gain = np.clip(diff, 0, None)
-    loss = np.clip(-diff, 0, None)
-    avg_gain = gain[:period].mean()
-    avg_loss = loss[:period].mean()
+    arr = [float(c) for c in closes]
+    diff = [arr[i + 1] - arr[i] for i in range(len(arr) - 1)]
+    gain = [d if d > 0 else 0.0 for d in diff]
+    loss = [-d if d < 0 else 0.0 for d in diff]
+    avg_gain = sum(gain[:period]) / period
+    avg_loss = sum(loss[:period]) / period
     for g, l in zip(gain[period:], loss[period:]):
         avg_gain = (avg_gain * (period - 1) + g) / period
         avg_loss = (avg_loss * (period - 1) + l) / period
@@ -67,15 +67,15 @@ def compute_adx_info(
     if len(closes) < period * 2:
         return None, None, None
 
-    arr = np.asarray(closes, dtype=float)
-    diff = np.diff(arr)
-    up = np.clip(diff, 0, None)
-    down = np.clip(-diff, 0, None)
-    tr = np.abs(diff)
+    arr = [float(c) for c in closes]
+    diff = [arr[i + 1] - arr[i] for i in range(len(arr) - 1)]
+    up = [d if d > 0 else 0.0 for d in diff]
+    down = [-d if d < 0 else 0.0 for d in diff]
+    tr = [abs(d) for d in diff]
 
-    atr = tr[:period].sum()
-    plus_dm = up[:period].sum()
-    minus_dm = down[:period].sum()
+    atr = sum(tr[:period])
+    plus_dm = sum(up[:period])
+    minus_dm = sum(down[:period])
     if atr == 0:
         return 0.0, 0.0, 0.0
     plus_di = 100 * plus_dm / atr
@@ -108,10 +108,9 @@ def bollinger(
     """Return lower/middle/upper Bollinger band."""
     if len(closes) < period:
         return None, None, None
-    arr = np.asarray(closes, dtype=float)
-    subset = arr[-period:]
-    mean = float(subset.mean())
-    sd = float(subset.std())
+    subset = [float(c) for c in closes[-period:]]
+    mean = statistics.mean(subset)
+    sd = statistics.stdev(subset) if period > 1 else 0.0
     lower = mean - dev * sd
     upper = mean + dev * sd
     return lower, mean, upper
@@ -123,15 +122,11 @@ def atr(
     """Return the latest ATR value using Wilder smoothing."""
     if len(closes) < period + 1:
         return 0.0
-    h = np.asarray(highs, dtype=float)
-    l = np.asarray(lows, dtype=float)
-    c = np.asarray(closes, dtype=float)
-    tr = np.maximum.reduce([
-        h[1:] - l[1:],
-        np.abs(h[1:] - c[:-1]),
-        np.abs(l[1:] - c[:-1]),
-    ])
-    atr_v = tr[:period].mean()
+    h = [float(x) for x in highs]
+    l = [float(x) for x in lows]
+    c = [float(x) for x in closes]
+    tr = [h[i] - l[i] for i in range(1, len(c))]
+    atr_v = sum(tr[:period]) / period
     for val in tr[period:]:
         atr_v = (atr_v * (period - 1) + val) / period
     return float(atr_v)
@@ -143,23 +138,22 @@ def adx(
     """Return the latest ADX value using Wilder smoothing."""
     if len(closes) < period + 1:
         return 0.0
-    h = np.asarray(highs, dtype=float)
-    l = np.asarray(lows, dtype=float)
-    c = np.asarray(closes, dtype=float)
+    h = [float(x) for x in highs]
+    l = [float(x) for x in lows]
+    c = [float(x) for x in closes]
 
-    up_move = h[1:] - h[:-1]
-    down_move = l[:-1] - l[1:]
-    plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
-    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
-    tr = np.maximum.reduce([
-        h[1:] - l[1:],
-        np.abs(h[1:] - c[:-1]),
-        np.abs(l[1:] - c[:-1]),
-    ])
+    up_move = [h[i] - h[i - 1] for i in range(1, len(h))]
+    down_move = [l[i - 1] - l[i] for i in range(1, len(l))]
+    plus_dm = [um if um > dm and um > 0 else 0.0 for um, dm in zip(up_move, down_move)]
+    minus_dm = [dm if dm > um and dm > 0 else 0.0 for um, dm in zip(up_move, down_move)]
+    tr = [
+        max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1]))
+        for i in range(1, len(c))
+    ]
 
-    atr = tr[:period].sum()
-    pdm = plus_dm[:period].sum()
-    mdm = minus_dm[:period].sum()
+    atr = sum(tr[:period])
+    pdm = sum(plus_dm[:period])
+    mdm = sum(minus_dm[:period])
     if atr == 0:
         return 0.0
     plus_di = 100 * pdm / atr
