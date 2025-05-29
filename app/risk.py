@@ -17,6 +17,9 @@ class Position:
         self.qty = 0
         self.avg_price = 0
         self.open_time = None
+        self.initial_qty = 0.0
+        self.realized_pnl = 0.0
+        self.entry_value = 0.0
 
 class RiskManager:
     EQUITY_FILE = Path(__file__).parent.parent / "start_equity.txt"
@@ -33,6 +36,9 @@ class RiskManager:
         self.tp2_done = False
         self.trail_price = None
         self.best_price = None
+        self.initial_qty = 0.0
+        self.realized_pnl = 0.0
+        self.entry_value = 0.0
         # store tuples of (high, low, close) for indicator calculations
         self.price_window = deque(maxlen=30)
         self.last_dca_price: float | None = None
@@ -76,6 +82,9 @@ class RiskManager:
         self.dca_levels = 0
         self.last_dca_price = None
         self.last_dca_time = None
+        self.realized_pnl = 0.0
+        self.initial_qty = self.position.qty
+        self.entry_value = self.position.qty * self.position.avg_price
 
     @staticmethod
     def percent(current, reference):
