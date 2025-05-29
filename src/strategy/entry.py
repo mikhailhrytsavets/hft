@@ -31,19 +31,29 @@ def is_reversal_candle(open_p: float, high: float, low: float, close: float) -> 
 
 class BounceEntry:
     @staticmethod
-    def _params(params: dict) -> dict:
+    def _getter(params):
+        if hasattr(params, "get"):
+            return params.get
+        if hasattr(params, "model_dump"):
+            data = params.model_dump()
+            return data.get
+        return lambda k, d=None: getattr(params, k, d)
+
+    @staticmethod
+    def _params(params) -> dict:
+        get = BounceEntry._getter(params)
         return {
-            "bb_dev": params.get("bb_dev", 2.0),
-            "bb_period": params.get("bb_period", 20),
-            "rsi_period": params.get("rsi_period", 14),
-            "rsi_extreme": params.get("rsi_extreme", (30.0, 70.0)),
-            "adx_period": params.get("adx_period", 14),
-            "adx_threshold": params.get("adx_threshold", 25.0),
+            "bb_dev": get("bb_dev", 2.0),
+            "bb_period": get("bb_period", 20),
+            "rsi_period": get("rsi_period", 14),
+            "rsi_extreme": get("rsi_extreme", (30.0, 70.0)),
+            "adx_period": get("adx_period", 14),
+            "adx_threshold": get("adx_threshold", 25.0),
         }
 
     @staticmethod
     def check(
-        bar, volumes: deque[float], closes: deque[float], params: dict
+        bar, volumes: deque[float], closes: deque[float], params
     ) -> EntrySignal | None:
         cfg = BounceEntry._params(params)
         if len(volumes) < cfg["bb_period"] or len(closes) < cfg["bb_period"]:
