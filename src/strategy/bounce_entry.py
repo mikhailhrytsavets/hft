@@ -21,7 +21,7 @@ def is_reversal_candle(open_p: float, high: float, low: float, close: float) -> 
     body = abs(close - open_p)
     upper = high - max(open_p, close)
     lower = min(open_p, close) - low
-    if body <= rng * 0.5 and (upper >= rng * 0.6 or lower >= rng * 0.6):
+    if body <= rng * 0.7 and (upper >= rng * 0.1 or lower >= rng * 0.1):
         return True
     if open_p <= low and close >= open_p + rng * 0.6:
         return True
