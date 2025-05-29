@@ -77,13 +77,6 @@ async def _fetch_closed_pnl(
     return None
 
 
-def _calc_pnl(side: str, entry_price: float, exit_price: float, qty: float) -> float:
-    """Return PnL in quote currency for ``qty`` closed at ``exit_price``."""
-    if side == "Buy":
-        return (exit_price - entry_price) * qty
-    return (entry_price - exit_price) * qty
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -574,8 +567,9 @@ class SymbolEngine:
                 print(f"[{self.symbol}] TP1 close failed: {exc}")
                 return
             self.risk.position.qty -= close_qty
-            pnl_part = _calc_pnl(self.risk.position.side, self.risk.position.avg_price, price, close_qty)
-            self.risk.realized_pnl += pnl_part
+            pnl = await _fetch_closed_pnl(self.client, self.symbol)
+            if pnl:
+                self.risk.realized_pnl += pnl[0]
             await notify_telegram(f"💰 TP1 {self.symbol}: {close_qty} closed")
             total_pct = (
                 self.risk.realized_pnl / self.risk.entry_value * 100
@@ -624,8 +618,9 @@ class SymbolEngine:
             print(f"[{self.symbol}] TP2 close failed: {exc}")
             return
         self.risk.position.qty -= close_qty
-        pnl_part = _calc_pnl(self.risk.position.side, self.risk.position.avg_price, price, close_qty)
-        self.risk.realized_pnl += pnl_part
+        pnl = await _fetch_closed_pnl(self.client, self.symbol)
+        if pnl:
+            self.risk.realized_pnl += pnl[0]
         await notify_telegram(f"💰 TP2 {self.symbol}: {close_qty} closed")
         total_pct = (
             self.risk.realized_pnl / self.risk.entry_value * 100
@@ -662,8 +657,9 @@ class SymbolEngine:
             else:
                 print(f"[{self.symbol}] ⚠️ close_order failed: {exc}")
                 return
-        pnl_part = _calc_pnl(self.risk.position.side, self.risk.position.avg_price, mkt_price, qty_close)
-        self.risk.realized_pnl += pnl_part
+        pnl = await _fetch_closed_pnl(self.client, self.symbol)
+        if pnl:
+            self.risk.realized_pnl += pnl[0]
         total_pct = (
             self.risk.realized_pnl / self.risk.entry_value * 100
             if self.risk.entry_value else 0.0
