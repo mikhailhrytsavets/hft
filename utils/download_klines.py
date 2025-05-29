@@ -5,11 +5,11 @@ Examples
 --------
 Download one month of BTCUSDT data::
 
-    python utils/download_klines.py --symbol BTCUSDT --month 2025-05
+    python -m utils.download_klines --symbol BTCUSDT --month 2025-05
 
 Download an entire year (creates 12 monthly CSV files)::
 
-    python utils/download_klines.py --symbol BTCUSDT --year 2025
+    python -m utils.download_klines --symbol BTCUSDT --year 2025
 """
 
 from __future__ import annotations
@@ -76,6 +76,18 @@ def collect(symbol: str, month: str, data_dir: pathlib.Path, http: HTTP | None =
             klines = resp.get("result", {}).get("list", [])
             if not klines:
                 break
+            # API may return lists instead of dicts; convert for convenience
+            if klines and isinstance(klines[0], list):
+                keys = [
+                    "start",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                    "turnover",
+                ]
+                klines = [dict(zip(keys, k)) for k in klines]
             klines.sort(key=lambda x: int(x.get("start") or x.get("t")))
             for k in klines:
                 writer.writerow(
