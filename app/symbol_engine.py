@@ -817,6 +817,7 @@ class SymbolEngine:
         self.current_sl_price = None
 
     async def _set_sl(self, qty: float, sl_price: float) -> None:
+        """Place or move a real stop-loss order on the exchange."""
         if self.sl_order_id:
             try:
                 await self.client.cancel_order(
@@ -826,8 +827,21 @@ class SymbolEngine:
                 )
             except Exception as exc:
                 print(f"[{self.symbol}] ⚠️ SL cancel failed: {exc}")
+            finally:
+                # Clear even if cancel failed to avoid repeated 110001 errors
+                self.sl_order_id = None
+
         step = self.precision.step(self.client.http, self.symbol)
         qty_r = snap_qty(qty, step)
+
+        # Ensure stop price is valid for the current trigger direction
+        current = self.close_window[-1] if self.close_window else None
+        if current is not None:
+            if self.risk.position.side == "Buy" and sl_price >= current:
+                sl_price = current * 0.999
+            elif self.risk.position.side == "Sell" and sl_price <= current:
+                sl_price = current * 1.001
+
         # Generate a fresh orderLinkId for each new SL order to ensure
         # uniqueness and avoid duplicate errors from the API
         self.sl_link_id = self.client.gen_link_id("sl")
@@ -838,10 +852,16 @@ class SymbolEngine:
                 sl_price,
                 order_link_id=self.sl_link_id,
             )
-            self.sl_order_id = resp.get("result", {}).get("orderId")
-            self.current_sl_price = sl_price
+            order_id = resp.get("result", {}).get("orderId")
+            if order_id:
+                self.sl_order_id = order_id
+                self.current_sl_price = sl_price
+            else:
+                print(f"[{self.symbol}] ⚠️ SL not created: {resp}")
+                self.sl_order_id = None
         except Exception as exc:
             print(f"[{self.symbol}] SL move failed: {exc}")
+            self.sl_order_id = None
 
     async def _cancel_all_active_orders(self):
         try:
