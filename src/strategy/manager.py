@@ -63,6 +63,24 @@ class PositionManager:
         self.trail_price = entry
 
     # ------------------------------------------------------------------
+    def add(self, qty: float, price: float) -> None:
+        """Increase position size and recalc average entry price."""
+        if self.state.side is None or qty <= 0:
+            return
+        total = self.state.entry * self.state.qty + price * qty
+        self.state.qty += qty
+        self.initial_qty += qty
+        self.state.entry = total / self.state.qty
+        if self.state.side == "LONG":
+            self.sl = self.state.entry - self.sl_atr * self.state.atr
+            self.tp1 = self.state.entry + self.tp1_atr * self.state.atr
+            self.tp2 = self.state.entry + self.tp2_atr * self.state.atr
+        else:
+            self.sl = self.state.entry + self.sl_atr * self.state.atr
+            self.tp1 = self.state.entry - self.tp1_atr * self.state.atr
+            self.tp2 = self.state.entry - self.tp2_atr * self.state.atr
+
+    # ------------------------------------------------------------------
     def _close_fraction(self, frac: float) -> float:
         qty_close = min(self.state.qty, self.initial_qty * frac)
         self.state.qty -= qty_close
