@@ -44,3 +44,10 @@ python scripts/fetch_and_backtest_year.py --year 2025 --interval 5 --equity 1000
 Downloads all pairs listed in `[bybit].symbols`.
 
 Produces `backtests/summary_2025.json` and monthly equity CSVs.
+
+## Configuration
+
+Runtime options are read from `settings.toml`.  The parameter
+`candle_interval_sec` controls how long each aggregated candle lasts when the
+engine warms up.  Decreasing this value shortens the warm‑up period without
+changing any code.

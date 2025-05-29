@@ -134,7 +134,7 @@ class SymbolEngine:
         )
         self._last_mt_update: float = 0.0
         self._mt_candles: dict[str, list] = defaultdict(list)
-        self._candle_agg = CandleAggregator()
+        self._candle_agg = CandleAggregator(settings.trading.candle_interval_sec)
         self.ohlc = OHLCCollector()
         self.ohlc.subscribe(self._on_bar)
 
