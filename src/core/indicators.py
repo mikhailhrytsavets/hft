@@ -9,6 +9,12 @@ try:  # optional NumPy dependency
 except Exception:  # pragma: no cover - fallback when numpy missing
     np = None
 
+from .indicators_vectorized import (
+    atr as vec_atr,
+    compute_adx as vec_compute_adx,
+    compute_rsi as vec_compute_rsi,
+)
+
 # ---------------------------------------------------------------------------
 # PHASE 1 AUDIT SUMMARY
 # ---------------------------------------------------------------------------
@@ -52,6 +58,12 @@ def compute_rsi(closes: Sequence[float], period: int) -> float | None:
     if len(closes) < period + 1:
         return None
     if np is not None:
+        try:
+            arr = vec_compute_rsi(np.asarray(closes, dtype=float), period)
+            val = arr[-1]
+            return None if np.isnan(val) else float(val)
+        except Exception:
+            pass
         arr = np.asarray(closes, dtype=float)
         diff = np.diff(arr)
         gain = np.where(diff > 0, diff, 0.0)
@@ -146,6 +158,12 @@ def atr(
     if len(closes) < period + 1:
         return 0.0
     if np is not None:
+        try:
+            arr = vec_atr(highs, lows, closes, period)
+            val = arr[-1]
+            return 0.0 if np.isnan(val) else float(val)
+        except Exception:
+            pass
         h = np.asarray(highs, dtype=float)
         l = np.asarray(lows, dtype=float)
         c = np.asarray(closes, dtype=float)
@@ -168,6 +186,12 @@ def adx(
     if len(closes) < period + 1:
         return 0.0
     if np is not None:
+        try:
+            arr = vec_compute_adx(highs, lows, closes, period)
+            val = arr[-1]
+            return 0.0 if np.isnan(val) else float(val)
+        except Exception:
+            pass
         h = np.asarray(highs, dtype=float)
         l = np.asarray(lows, dtype=float)
         c = np.asarray(closes, dtype=float)
