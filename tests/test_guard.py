@@ -1,5 +1,5 @@
 from types import SimpleNamespace as NS
-from legacy.risk.guard import RiskGuard
+from app.risk_guard import RiskGuard
 
 
 def test_block_by_count():
@@ -14,10 +14,12 @@ def test_block_by_risk():
     assert not guard.allow_new_position(6)
 
 
-def test_dd_lock():
+
+def test_daily_trade_limit_blocks_new_positions():
     acc = NS(equity_usd=10000, open_positions=[])
     g = RiskGuard(acc)
-    g.update_daily_pnl(-600)
+    g.DAILY_TRADES_LIMIT = 1
+    g.today_trades = 1
     assert not g.allow_new_position(1)
 
 
