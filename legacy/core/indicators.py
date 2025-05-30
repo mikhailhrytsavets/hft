@@ -1,5 +1,5 @@
-from __future__ import annotations
 """Indicator utilities used across the project."""
+from __future__ import annotations
 
 from typing import Sequence, Tuple
 import statistics

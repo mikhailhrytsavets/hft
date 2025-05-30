@@ -1,6 +1,5 @@
-from __future__ import annotations
-
 """Hybrid strategy engine combining SymbolEngine with extra filters."""
+from __future__ import annotations
 
 import asyncio
 import math
