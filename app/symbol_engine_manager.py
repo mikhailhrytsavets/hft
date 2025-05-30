@@ -22,13 +22,17 @@ class SymbolEngineManager:
             self.guard.MAX_POSITIONS = settings.risk.max_open_positions
         if settings.trading.max_position_risk_percent:
             self.guard.TOTAL_RISK_CAP_PCT = settings.trading.max_position_risk_percent
+        if settings.risk.daily_trades_limit:
+            self.guard.DAILY_TRADES_LIMIT = settings.risk.daily_trades_limit
+
+    def _engine_class(self) -> type[SymbolEngine]:
+        mode = getattr(settings.trading, "strategy_mode", "basic")
+        if str(mode).strip().lower() == "hybrid":
+            return HybridStrategyEngine
+        return SymbolEngine
 
     async def _run_engine(self, symbol: str, ref_symbol: str | None = None):
-        engine_cls = (
-            HybridStrategyEngine
-            if settings.trading.strategy_mode == "hybrid"
-            else SymbolEngine
-        )
+        engine_cls = self._engine_class()
         engine = (
             engine_cls(symbol, ref_symbol)
             if engine_cls is HybridStrategyEngine
@@ -46,7 +50,12 @@ class SymbolEngineManager:
                 print(f"[{symbol}] ❌ Engine crashed: {exc} → restart in {wait}s")
                 await notify_telegram(f"❌ Engine {symbol} crashed: {exc}")
                 await asyncio.sleep(wait)
-                engine = engine_cls(symbol, ref_symbol) if engine_cls is HybridStrategyEngine else engine_cls(symbol)
+                engine_cls = self._engine_class()
+                engine = (
+                    engine_cls(symbol, ref_symbol)
+                    if engine_cls is HybridStrategyEngine
+                    else engine_cls(symbol)
+                )
                 engine.manager = self
                 self.engines[symbol] = engine
             else:
