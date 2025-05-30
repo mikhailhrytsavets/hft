@@ -74,13 +74,19 @@ class SymbolEngineManager:
 
     async def _maybe_open_position(self, engine: SymbolEngine, direction: str, price: float) -> None:
         risk_pct = settings.trading.initial_risk_percent
-        if not self.guard.allow_new_position(risk_pct):
+        guard = self.guard
+        if settings.risk.enable_daily_trades_guard:
+            if guard.today_trades >= settings.risk.daily_trades_limit:
+                print("\u274c Daily trades limit")
+                return
+        if not guard.allow_new_position(risk_pct):
             print("Portfolio risk cap hit")
             return
         if engine.entry_order_id is not None or engine.risk.position.qty > 0:
             return
         await engine._open_position(direction, price)
         self.account.open_positions.append(NS(symbol=engine.symbol, risk_pct=risk_pct))
+        guard.inc_trade()
 
     def position_closed(self, engine: SymbolEngine) -> None:
         self.account.open_positions = [p for p in self.account.open_positions if p.symbol != engine.symbol]

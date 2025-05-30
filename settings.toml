@@ -54,6 +54,7 @@ enable_stat_arb         = true
 stat_arb_entry_z        = 1.0
 stat_arb_exit_z         = 0.5
 stat_arb_stop_z         = 4.0
+# ⚠️ Параметры действительно используются HybridStrategyEngine
 
 # — опциональные фильтры (старый код) —
 enable_rsi_filter         = true
