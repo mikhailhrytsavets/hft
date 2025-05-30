@@ -2,6 +2,7 @@ import asyncio
 from types import SimpleNamespace as NS
 
 from app.symbol_engine import SymbolEngine
+from app.hybrid_strategy_engine import HybridStrategyEngine
 from app.config import settings
 from app.command_listener import telegram_command_listener
 from app.exchange import BybitClient
@@ -20,8 +21,9 @@ class SymbolEngineManager:
         if settings.trading.max_position_risk_percent:
             self.guard.TOTAL_RISK_CAP_PCT = settings.trading.max_position_risk_percent
 
-    async def _run_engine(self, symbol: str):
-        engine = SymbolEngine(symbol)
+    async def _run_engine(self, symbol: str, ref_symbol: str | None = None):
+        engine_cls = HybridStrategyEngine if settings.trading.strategy_mode == "hybrid" else SymbolEngine
+        engine = engine_cls(symbol, ref_symbol) if engine_cls is HybridStrategyEngine else engine_cls(symbol)
         engine.manager = self
         self.engines[symbol] = engine
         attempt = 0
@@ -34,22 +36,37 @@ class SymbolEngineManager:
                 print(f"[{symbol}] ❌ Engine crashed: {exc} → restart in {wait}s")
                 await notify_telegram(f"❌ Engine {symbol} crashed: {exc}")
                 await asyncio.sleep(wait)
-                engine = SymbolEngine(symbol)
+                engine = engine_cls(symbol, ref_symbol) if engine_cls is HybridStrategyEngine else engine_cls(symbol)
                 engine.manager = self
                 self.engines[symbol] = engine
             else:
                 attempt = 0
 
     async def start_all(self):
+        handled = set()
+        active = []
         for symbol in self.symbols:
-            self.tasks[symbol] = asyncio.create_task(self._run_engine(symbol))
+            if symbol in handled:
+                continue
+            ref = None
+            params = settings.symbol_params.get(symbol)
+            if params:
+                ref = getattr(params, "ref_symbol", None)
+            if settings.trading.strategy_mode == "hybrid" and ref and ref not in handled:
+                self.tasks[symbol] = asyncio.create_task(self._run_engine(symbol, ref))
+                handled.update({symbol, ref})
+                active.append(symbol)
+            else:
+                self.tasks[symbol] = asyncio.create_task(self._run_engine(symbol))
+                handled.add(symbol)
+                active.append(symbol)
 
         # shared WS connections ----------------------------------------
         self.tasks["orderbook"] = asyncio.create_task(
-            BybitClient.ws_multi(self.symbols, "orderbook.50", self._on_orderbook)
+            BybitClient.ws_multi(active, "orderbook.50", self._on_orderbook)
         )
         self.tasks["trades"] = asyncio.create_task(
-            BybitClient.ws_multi(self.symbols, "publicTrade", self._on_trades)
+            BybitClient.ws_multi(active, "publicTrade", self._on_trades)
         )
 
         self.tasks["cmd"] = asyncio.create_task(telegram_command_listener())

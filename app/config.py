@@ -64,6 +64,21 @@ class TradingSettings(BaseModel):
     tp2_percent: float | None = None
     tp2_close_ratio: float | None = 0.3
     trailing_distance_percent: float = 0.2
+    # ---- hybrid strategy additions ----
+    strategy_mode: str = "basic"
+    enable_mm: bool = False
+    mm_spread_percent: float = 0.2
+    mm_refresh_seconds: int = 10
+    enable_mom_filter: bool = False
+    momentum_period: int = 5
+    use_ml_scoring: bool = False
+    use_atr_stop: bool = False
+    atr_stop_multiplier: float = 1.5
+    hard_sl_percent: float = 2.0
+    enable_stat_arb: bool = False
+    stat_arb_entry_z: float = 2.0
+    stat_arb_exit_z: float = 0.5
+    stat_arb_stop_z: float = 4.0
 
 class RiskSettings(BaseModel):
     daily_drawdown_percent: float
@@ -72,6 +87,8 @@ class RiskSettings(BaseModel):
     enable_daily_profit_guard: bool = True
     max_open_positions: int = 0
     max_total_volume: float = 0.0
+    daily_trades_limit: int = 0
+    enable_daily_trades_guard: bool = False
 
 class TelegramSettings(BaseModel):
     bot_token: str
@@ -97,6 +114,7 @@ class SymbolParams(BaseModel):
     bb_dev: float = 2.0
     dca_max: int = 2
     hedge_ratio: float = 0.50
+    ref_symbol: str | None = None
 
 class Settings(BaseModel):
     bybit: BybitSettings
