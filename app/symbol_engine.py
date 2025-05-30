@@ -556,7 +556,7 @@ class SymbolEngine:
 
         # initial SL ------------------------------------------------------
         sl_price = self._soft_sl_price(price, side)
-        await self._set_sl(qty, sl_price)
+        await self._set_sl(qty, sl_price, price)
 
     # ------------------------------------------------------------------
     # Position management
@@ -570,7 +570,11 @@ class SymbolEngine:
                 ) or (
                     self.risk.position.side == "Sell" and self.risk.trail_price < self.current_sl_price
                 ):
-                    await self._set_sl(self.risk.position.qty, self.risk.trail_price)
+                    await self._set_sl(
+                        self.risk.position.qty,
+                        self.risk.trail_price,
+                        price,
+                    )
             return
         if signal == "DCA":
             await handle_dca(self, price)
@@ -637,7 +641,7 @@ class SymbolEngine:
                 sl_px = self.risk.position.avg_price * (1 - be / 100)
         else:
             sl_px = self.risk.position.avg_price
-        await self._set_sl(self.risk.position.qty, sl_px)
+        await self._set_sl(self.risk.position.qty, sl_px, price)
 
     async def _handle_tp2(self, price: float) -> None:
         if settings.trading.tp2_close_ratio is None:
@@ -728,12 +732,21 @@ class SymbolEngine:
         if self.manager:
             self.manager.position_closed(self)
 
-    async def _set_sl(self, qty: float, sl_price: float) -> None:
-        """Place a reduce-only stop order and store its ``orderId``."""
+    async def _set_sl(
+        self, qty: float, sl_price: float, current_price: float | None = None
+    ) -> None:
+        """Place a reduce-only stop order and store its ``orderId``.
+
+        ``current_price`` should be the latest traded price so the stop
+        trigger is guaranteed to be below (or above for shorts) the actual
+        market price at the moment of submission.
+        """
         step = self.precision.step(self.client.http, self.symbol)
         qty_r = snap_qty(qty, step)
 
-        current = self.close_window[-1] if self.close_window else None
+        current = current_price
+        if current is None:
+            current = self.close_window[-1] if self.close_window else None
         if current is not None:
             if self.risk.position.side == "Buy" and sl_price >= current:
                 sl_price = current * 0.999
