@@ -99,6 +99,8 @@ class HybridStrategyEngine(SymbolEngine):
         spread = settings.trading.mm_spread_percent / 100 * mid
         bid = mid - spread
         ask = mid + spread
+        step = self.precision.step(self.client.http, self.symbol)
+        qty = max(step, 0.001)
         self.mm_order_time = time.time()
         try:
             step = self.precision.step(self.client.http, self.symbol)
