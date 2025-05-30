@@ -418,13 +418,38 @@ class SymbolEngine:
             current_bar = self.ohlc.last_bar
             sig = None
             if current_bar:
-                sig = BounceEntry.check(current_bar, self.volume_window, self.close_window, settings.symbol_params.get(self.symbol, {}))
+                sig = BounceEntry.check(
+                    current_bar,
+                    self.volume_window,
+                    self.close_window,
+                    settings.symbol_params.get(self.symbol, {}),
+                )
+
             if sig and self.risk.position.qty == 0:
-                if self.manager:
-                    await self.manager._maybe_open_position(self, sig.value, price)
-                else:
-                    await self._open_position(sig.value, price)
-                continue
+                if settings.multi_tf.enable:
+                    ok = True
+                    for tf in settings.multi_tf.intervals:
+                        trend = tf_trend.get(tf)
+                        if trend is None or trend == "MIXED":
+                            ok = False
+                            break
+                        if sig is EntrySignal.LONG and trend != "UP":
+                            ok = False
+                            break
+                        if sig is EntrySignal.SHORT and trend != "DOWN":
+                            ok = False
+                            break
+                    if not ok:
+                        print(f"[{self.symbol}] 🚫 multi-TF filter (bounce)")
+                        sig = None
+                if sig:
+                    if self.manager:
+                        await self.manager._maybe_open_position(
+                            self, sig.value, price
+                        )
+                    else:
+                        await self._open_position(sig.value, price)
+                    continue
 
             mode = "range"
             trend_dir = None
