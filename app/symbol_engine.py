@@ -555,7 +555,14 @@ class SymbolEngine:
             await self._handle_tp1(price)
         else:  # TP, SOFT_SL, TRAIL or TIMEOUT
             if signal in ("SOFT_SL", "TRAIL") and settings.trading.enable_hedging:
-                await maybe_hedge(self, self.risk.position.side, self.risk.position.qty, price, datetime.utcnow())
+                await maybe_hedge(
+                    self,
+                    self.risk.position.side,
+                    self.risk.position.qty,
+                    price,
+                    datetime.utcnow(),
+                    signal,
+                )
                 return
             await self._close_position(signal, price)
 
