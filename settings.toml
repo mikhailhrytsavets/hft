@@ -41,7 +41,7 @@ min_profit_to_be          = 0.30
 
 # Hybrid strategy options
 strategy_mode            = "hybrid"
-enable_mm               = true
+enable_mm               = false
 mm_spread_percent       = 0.2
 mm_refresh_seconds      = 10
 enable_mom_filter       = false
@@ -51,7 +51,7 @@ use_atr_stop            = true
 atr_stop_multiplier     = 1.5
 hard_sl_percent         = 2.0
 enable_stat_arb         = true
-stat_arb_entry_z        = 1.0
+stat_arb_entry_z        = 1.5
 stat_arb_exit_z         = 0.5
 stat_arb_stop_z         = 4.0
 # ⚠️ Параметры действительно используются HybridStrategyEngine
