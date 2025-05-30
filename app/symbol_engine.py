@@ -498,7 +498,7 @@ class SymbolEngine:
         except Exception as exc:
             print(f"[{self.symbol}] Qty calc failed: {exc}")
             return
-        resp = await self.client.create_limit_order(side, qty, price)
+        resp = await self.client.create_market_order(side, qty)
         order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
         if order_id:
             self.entry_order_id = order_id
@@ -554,10 +554,9 @@ class SymbolEngine:
         if close_qty > 0:
             side_close = "Sell" if self.risk.position.side == "Buy" else "Buy"
             try:
-                resp = await self.client.create_limit_order(
+                resp = await self.client.create_market_order(
                     side_close,
                     close_qty,
-                    price,
                     reduce_only=True,
                 )
                 order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
@@ -605,10 +604,9 @@ class SymbolEngine:
             return
         side_close = "Sell" if self.risk.position.side == "Buy" else "Buy"
         try:
-            resp = await self.client.create_limit_order(
+            resp = await self.client.create_market_order(
                 side_close,
                 close_qty,
-                price,
                 reduce_only=True,
             )
             order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
@@ -642,10 +640,9 @@ class SymbolEngine:
         if qty_close <= 0:
             return
         try:
-            resp = await self.client.create_limit_order(
+            resp = await self.client.create_market_order(
                 side_close,
                 qty_close,
-                mkt_price,
                 reduce_only=True,
             )
             order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None

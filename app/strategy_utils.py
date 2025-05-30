@@ -124,7 +124,7 @@ async def maybe_hedge(
     side_flip = "Sell" if side == "Buy" else "Buy"
     await engine._close_position("SOFT_SL", price)
     try:
-        await engine.client.create_limit_order(side_flip, hedge_qty, price)
+        await engine.client.create_market_order(side_flip, hedge_qty)
     except Exception as exc:  # pragma: no cover - network call
         print(f"[{engine.symbol}] Hedge failed: {exc}")
         return
@@ -158,7 +158,7 @@ async def handle_dca(engine, price: float) -> None:
     except Exception as exc:  # pragma: no cover - network call
         print(f"[{engine.symbol}] DCA qty calc failed: {exc}")
         return
-    await engine.client.create_limit_order(engine.risk.position.side, qty, price)
+    await engine.client.create_market_order(engine.risk.position.side, qty)
     RiskManager.position_volumes[engine.symbol] = (
         RiskManager.position_volumes.get(engine.symbol, 0.0) + qty * price
     )

@@ -109,8 +109,18 @@ class BybitClient:
                 )
                 await asyncio.sleep(wait)
 
-    async def create_market_order(self, side: str, qty: float):
-        """Place a market order with a unique ``orderLinkId``."""
+    async def create_market_order(self, side: str, qty: float, reduce_only: bool = False):
+        """Place a market order with a unique ``orderLinkId``.
+
+        Parameters
+        ----------
+        side : str
+            Order side, ``"Buy"`` or ``"Sell"``.
+        qty : float
+            Order quantity.
+        reduce_only : bool, optional
+            Submit order in reduce-only mode when ``True``.
+        """
         if not self.place_orders:
             print(f"[{self.symbol}] 🚫 create_market_order suppressed: {side} {qty}")
             return {}
@@ -124,7 +134,8 @@ class BybitClient:
                     side=side,
                     orderType="Market",
                     qty=qty,
-                    reduceOnly=False,
+                    reduceOnly=reduce_only,
+                    timeInForce="IOC",
                     orderLinkId=link_id,
                 )
             except InvalidRequestError as e:
