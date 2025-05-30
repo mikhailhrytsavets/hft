@@ -4,7 +4,7 @@ from legacy.core import indicators
 def test_atr_constant_range():
     high = [float(i) for i in range(1, 16)]
     low = [h - 1.5 for h in high]
-    close = [(h + l) / 2 for h, l in zip(high, low)]
+    close = [(h + low_val) / 2 for h, low_val in zip(high, low)]
     atr = indicators.atr(high, low, close, period=14)
     assert round(float(atr), 4) == 1.5
 
