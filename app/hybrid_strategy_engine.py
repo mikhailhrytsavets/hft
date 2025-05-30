@@ -99,10 +99,17 @@ class HybridStrategyEngine(SymbolEngine):
         spread = settings.trading.mm_spread_percent / 100 * mid
         bid = mid - spread
         ask = mid + spread
+        step = self.precision.step(self.client.http, self.symbol)
+        qty = max(step, 0.001)
         self.mm_order_time = time.time()
         try:
-            self.buy_order_id = (await self.client.create_limit_order("Buy", bid, 0.001)).get("result", {}).get("orderId")
-            self.sell_order_id = (await self.client.create_limit_order("Sell", ask, 0.001)).get("result", {}).get("orderId")
+            # qty comes first, then price
+            self.buy_order_id = (
+                await self.client.create_limit_order("Buy", qty, bid)
+            ).get("result", {}).get("orderId")
+            self.sell_order_id = (
+                await self.client.create_limit_order("Sell", qty, ask)
+            ).get("result", {}).get("orderId")
         except Exception as exc:
             print(f"[{self.symbol}] MM order error: {exc}")
 
