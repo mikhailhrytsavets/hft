@@ -3,12 +3,12 @@
 from collections import deque
 from typing import Deque
 
-from src.core.data import OHLCCollector, Bar
-from src.market_features import MarketFeatures
-from src.core import indicators
-from src.strategy.bounce_entry import BounceEntry, EntrySignal
-from src.strategy.dca import SmartDCA
-from src.strategy.manager import PositionManager
+from legacy.core.data import OHLCCollector, Bar
+from legacy.market_features import MarketFeatures
+from legacy.core import indicators
+from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
+from legacy.strategy.dca import SmartDCA
+from legacy.strategy.manager import PositionManager
 
 class SymbolEngine:
     def __init__(self, symbol: str) -> None:

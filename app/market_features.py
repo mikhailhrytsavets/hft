@@ -1,4 +1,4 @@
-"""Runtime wrapper for :mod:`src.market_features`."""
+"""Runtime wrapper for :mod:`legacy.market_features`."""
 
-from src.market_features import *  # re-export for backward compatibility
+from legacy.market_features import *  # re-export for backward compatibility
 

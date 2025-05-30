@@ -1,5 +1,5 @@
 from types import SimpleNamespace as NS
-from src.risk.guard import RiskGuard
+from legacy.risk.guard import RiskGuard
 
 
 def test_block_by_count():

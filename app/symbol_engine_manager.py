@@ -7,7 +7,7 @@ from app.config import settings
 from app.command_listener import telegram_command_listener
 from app.exchange import BybitClient
 from app.notifier import notify_telegram
-from src.risk.guard import RiskGuard
+from legacy.risk.guard import RiskGuard
 
 class SymbolEngineManager:
     def __init__(self, symbols: list[str]):

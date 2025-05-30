@@ -6,7 +6,7 @@ from collections import deque
 import statistics
 import math
 
-from src.core.data import Bar
+from legacy.core.data import Bar
 
 
 class MarketFeatures:

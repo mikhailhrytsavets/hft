@@ -1,4 +1,3 @@
-from typing import List
 
 class CandleAggregator:
     """Aggregate tick prices into fixed interval candles."""

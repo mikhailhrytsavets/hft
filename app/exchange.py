@@ -5,7 +5,6 @@ import json
 import inspect
 import websockets
 from pybit.unified_trading import HTTP
-from app.config import settings
 from pybit.exceptions import InvalidRequestError
 import time
 import math

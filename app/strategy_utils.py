@@ -10,7 +10,7 @@ from app.config import settings
 from app.utils import snap_qty
 from app.risk import RiskManager
 from app.notifier import notify_telegram
-from src.core.indicators import compute_adx
+from legacy.core.indicators import compute_adx
 
 
 # ---------------------------------------------------------------------------

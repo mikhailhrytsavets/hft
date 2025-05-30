@@ -1,11 +1,10 @@
 import asyncio
-import pytest
 
-from src.symbol_engine import SymbolEngine
-from src.strategy.bounce_entry import BounceEntry, EntrySignal
-from src.strategy.dca import SmartDCA
-from src.core.data import Bar
-from src.core import indicators
+from legacy.symbol_engine import SymbolEngine
+from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
+from legacy.strategy.dca import SmartDCA
+from legacy.core.data import Bar
+from legacy.core import indicators
 
 
 def test_entry_dca_exit(monkeypatch):
