@@ -81,12 +81,12 @@ trend_confirm_bars  = 2
 
 #############################  Global risk  ####################################
 [risk]
-daily_drawdown_percent       = -5.0
+daily_drawdown_percent       = -99.0
 enable_daily_drawdown_guard  = true
 daily_profit_percent         =  0.0
 enable_daily_profit_guard    = false
 max_open_positions           = 8            # фиксировано по ТЗ
-daily_trades_limit          = 10
+daily_trades_limit          = 1000
 enable_daily_trades_guard   = true
 
 ###########################  Telegram notifier  ################################
@@ -109,18 +109,16 @@ symbol_threshold_k = {}
 
 [symbol_params.BTCUSDT]
 dca_max     = 3
-hedge_ratio = 0.50     # хедж ETH 50 %
-ref_symbol = "ETHUSDT"
+hedge_ratio = 0.50     
 
 [symbol_params.ETHUSDT]
 dca_max     = 3
-hedge_ratio = 0.50     # хедж BTC 50 %
-ref_symbol = "BTCUSDT"
+hedge_ratio = 0.50     
 
 [symbol_params.1000PEPEUSDT]
 bb_dev      = 2.5      # расширенный BB
 dca_max     = 1
-hedge_ratio = 0.30     # частичный хедж BTC 30 %
+hedge_ratio = 0.30    
 
 # Остальные пары (SOL, DOGE, SUI, XRP, ADA) унаследуют дефолты.
 ################################################################################
