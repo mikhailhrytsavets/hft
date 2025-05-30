@@ -6,7 +6,7 @@ from collections import deque
 
 from src.core.data import Bar
 from src.core import indicators
-from src.strategy.entry import BounceEntry, EntrySignal
+from src.strategy.bounce_entry import BounceEntry, EntrySignal
 from src.strategy.manager import PositionManager
 
 
