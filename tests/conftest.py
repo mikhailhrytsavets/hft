@@ -6,6 +6,36 @@ pybit = types.ModuleType("pybit")
 pybit.exceptions = types.SimpleNamespace(InvalidRequestError=Exception)
 sys.modules.setdefault("pybit", pybit)
 sys.modules.setdefault("pybit.exceptions", pybit.exceptions)
+# stub pybit.unified_trading.HTTP
+class _HTTP:
+    def __init__(self, *a, **k):
+        pass
+
+pybit.unified_trading = types.SimpleNamespace(HTTP=_HTTP)
+sys.modules.setdefault("pybit.unified_trading", pybit.unified_trading)
+# minimal pydantic stub
+pydantic = types.ModuleType("pydantic")
+
+class _FakeModel:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+pydantic.BaseModel = _FakeModel
+sys.modules.setdefault("pydantic", pydantic)
+# stub aiosqlite
+sys.modules.setdefault("aiosqlite", types.ModuleType("aiosqlite"))
+sys.modules.setdefault("websockets", types.ModuleType("websockets"))
+req_mod = types.ModuleType("requests")
+req_mod.ReadTimeout = Exception
+req_mod.ConnectionError = Exception
+sys.modules.setdefault("requests", req_mod)
+urllib3_mod = types.ModuleType("urllib3")
+urllib3_mod.exceptions = types.SimpleNamespace(ProtocolError=Exception)
+sys.modules.setdefault("urllib3", urllib3_mod)
+aiohttp_mod = types.ModuleType("aiohttp")
+aiohttp_mod.ClientSession = object
+sys.modules.setdefault("aiohttp", aiohttp_mod)
 from collections import namedtuple
 import pytest
 

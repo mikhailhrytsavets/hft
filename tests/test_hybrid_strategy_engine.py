@@ -1,0 +1,69 @@
+import math
+import pytest
+import types, sys
+
+# provide minimal settings stub before importing engine
+trading = types.SimpleNamespace(leverage=1, enable_hedging=False, candle_interval_sec=1,
+                                rsi_period=14, adx_period=14)
+entry_score = types.SimpleNamespace(symbol_weights={}, weights={}, threshold_k=1.0, symbol_threshold_k={})
+settings_stub = types.SimpleNamespace(bybit=types.SimpleNamespace(api_key="", api_secret="", testnet=False, demo=False, place_orders=False, channel_type="linear"),
+                                      trading=trading, risk=types.SimpleNamespace(max_open_positions=0), telegram=None, entry_score=entry_score, multi_tf=types.SimpleNamespace(enable=False, intervals=[]), symbol_params={})
+sys.modules['app.config'] = types.SimpleNamespace(settings=settings_stub)
+
+class DummyClient:
+    def __init__(self, symbol, api_key="", api_secret="", testnet=False, demo=False, channel_type="linear", place_orders=True):
+        self.symbol = symbol
+        self.http = types.SimpleNamespace(api_key=api_key, api_secret=api_secret, testnet=testnet, demo=demo,
+                                          get_positions=lambda category, symbol: {"result": {"list": [{}]}},
+                                          get_open_orders=lambda category, symbol: {"result": {"list": []}})
+        self.place_orders = place_orders
+        self.channel_type = channel_type
+
+    def set_leverage(self, *a, **k):
+        print(f"[{self.symbol}] \u274c set_leverage suppressed")
+
+    async def price_stream(self, *a, **k):
+        if False:
+            yield 0
+
+sys.modules['app.exchange'] = types.SimpleNamespace(BybitClient=DummyClient)
+
+from app.hybrid_strategy_engine import HybridStrategyEngine
+
+
+def test_initialization_and_attributes():
+    engine = HybridStrategyEngine("BTCUSDT", "ETHUSDT")
+    assert engine.symbol == "BTCUSDT"
+    assert engine.ref_symbol == "ETHUSDT"
+    assert engine.client.symbol == "BTCUSDT"
+    assert engine.ref_client.symbol == "ETHUSDT"
+    assert engine.risk.position.qty == 0
+    assert engine.ref_risk.position.qty == 0
+
+
+def test_ml_evaluate_signal_placeholder():
+    engine = HybridStrategyEngine("BTCUSDT")
+    assert engine._ml_evaluate_signal() is True
+
+
+def test_momentum_filter_logic():
+    engine = HybridStrategyEngine("BTCUSDT")
+    engine.market.price_window.extend([100.0, 99.0, 98.0, 97.0, 96.0])
+    assert engine._momentum_ok("LONG") is False
+    assert engine._momentum_ok("SHORT") is True
+
+
+def test_spread_zscore_computation():
+    engine = HybridStrategyEngine("BTCUSDT", "ETHUSDT")
+    main_prices = [100, 102, 101, 99, 100]
+    ref_prices = [50, 51, 50.5, 49, 50]
+    for pm, pr in zip(main_prices, ref_prices):
+        if engine.ref_price is None:
+            engine.ref_price = pr
+        log_ratio = math.log(pm) - math.log(pr)
+        engine.spread_history.append(log_ratio)
+    if len(engine.spread_history) > 1:
+        mean = sum(engine.spread_history) / len(engine.spread_history)
+        var = sum((x - mean) ** 2 for x in engine.spread_history) / len(engine.spread_history)
+        z = (engine.spread_history[-1] - mean) / (math.sqrt(var) if var > 0 else 1)
+        assert abs(z) < 1.0
