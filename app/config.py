@@ -12,6 +12,18 @@ class BybitSettings(BaseModel):
     channel_type: str = "linear"
 
 class TradingSettings(BaseModel):
+    """Trading parameters including optional hybrid‑strategy fields.
+
+    The class defines standard risk and DCA settings and also supports the
+    following hybrid options used by ``HybridStrategyEngine``:
+
+    ``strategy_mode``,
+    ``enable_mm``, ``mm_spread_percent``, ``mm_refresh_seconds``,
+    ``enable_mom_filter``, ``momentum_period``, ``use_ml_scoring``,
+    ``use_atr_stop``, ``atr_stop_multiplier``, ``hard_sl_percent``,
+    ``enable_stat_arb``, ``stat_arb_entry_z``, ``stat_arb_exit_z`` and
+    ``stat_arb_stop_z``.
+    """
     leverage: int
     initial_risk_percent: float
     dca_risk_multiplier: float

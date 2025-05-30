@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import date
 
 """Global risk guard enforcing position and equity limits."""
 
@@ -16,6 +17,8 @@ class RiskGuard:
         self.daily_pnl = 0.0
         self.dd_lock = False
         self.profit_lock = False
+        self.today_trades = 0
+        self.today_date = date.today()
 
     def update_daily_pnl(self, pnl: float) -> None:
         self.daily_pnl += pnl
@@ -32,3 +35,11 @@ class RiskGuard:
             return False
         total = sum(p.risk_pct for p in self.account.open_positions) + risk_pct
         return total <= self.TOTAL_RISK_CAP_PCT
+
+    def inc_trade(self) -> None:
+        """Increase trade counter respecting day boundaries."""
+        today = date.today()
+        if today != self.today_date:
+            self.today_date = today
+            self.today_trades = 0
+        self.today_trades += 1
