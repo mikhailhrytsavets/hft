@@ -70,3 +70,32 @@ class BounceEntry:
             return EntrySignal.NO
 
         return direction
+
+    @staticmethod
+    def check(
+        bar,
+        volume_window: Sequence[float],
+        close_window: Sequence[float],
+        params: object | dict,
+    ) -> EntrySignal | None:
+        """Return ``EntrySignal`` if all conditions are met."""
+        dev = getattr(params, "bb_dev", None)
+        if isinstance(params, dict):
+            dev = params.get("bb_dev", dev)
+        bb_dev = dev if dev is not None else 2.0
+
+        if len(close_window) < 20:
+            return None
+
+        from src.core import indicators
+
+        lower, _, upper = indicators.bollinger(list(close_window), 20, bb_dev)
+        rsi_v = indicators.rsi(list(close_window), 14)
+        sig = BounceEntry.generate_signal(
+            bar,
+            list(volume_window),
+            (lower, upper),
+            (rsi_v, 30.0, 70.0),
+            0.0,
+        )
+        return sig if sig is not EntrySignal.NO else None
