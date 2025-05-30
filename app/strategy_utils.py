@@ -129,6 +129,10 @@ async def maybe_hedge(
     except Exception as exc:  # pragma: no cover - network call
         print(f"[{engine.symbol}] Hedge failed: {exc}")
         return
+    print(f"[{engine.symbol}] ♻️ Hedge {side_flip} {hedge_qty}")
+    await notify_telegram(
+        f"♻️ Hedge {engine.symbol}: {side_flip} qty={hedge_qty}"
+    )
 
     engine.hedge_cycle_count += 1
     RiskManager.active_positions.add(engine.symbol)
