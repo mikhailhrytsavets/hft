@@ -20,8 +20,8 @@ from helpers.metrics import sharpe, profit_factor, max_drawdown
 
 def load_bars(path: str):
     with open(path) as f:
-        for ts, o, h, l, c, v in csv.reader(f):
-            yield float(o), float(h), float(l), float(c), float(v), int(ts)
+        for ts, o, h, low, c, v in csv.reader(f):
+            yield float(o), float(h), float(low), float(c), float(v), int(ts)
 
 
 async def backtest(

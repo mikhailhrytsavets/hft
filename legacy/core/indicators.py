@@ -80,9 +80,9 @@ def compute_rsi(closes: Sequence[float], period: int) -> float | None:
         loss = [-d if d < 0 else 0.0 for d in diff]
     avg_gain = sum(gain[:period]) / period
     avg_loss = sum(loss[:period]) / period
-    for g, l in zip(gain[period:], loss[period:]):
+    for g, loss_val in zip(gain[period:], loss[period:]):
         avg_gain = (avg_gain * (period - 1) + g) / period
-        avg_loss = (avg_loss * (period - 1) + l) / period
+        avg_loss = (avg_loss * (period - 1) + loss_val) / period
     if avg_loss == 0:
         return 100.0
     rs = avg_gain / avg_loss
@@ -174,14 +174,14 @@ def atr(
 
     if np is not None:
         h = np.asarray(highs, dtype=float)
-        l = np.asarray(lows, dtype=float)
+        low_arr = np.asarray(lows, dtype=float)
         c = np.asarray(closes, dtype=float)
-        tr = h[1:] - l[1:]
+        tr = h[1:] - low_arr[1:]
     else:
         h = [float(x) for x in highs]
-        l = [float(x) for x in lows]
+        low_arr = [float(x) for x in lows]
         c = [float(x) for x in closes]
-        tr = [h[i] - l[i] for i in range(1, len(c))]
+        tr = [h[i] - low_arr[i] for i in range(1, len(c))]
     atr_v = sum(tr[:period]) / period
     for val in tr[period:]:
         atr_v = (atr_v * (period - 1) + val) / period
@@ -206,29 +206,29 @@ def adx(
 
     if np is not None:
         h = np.asarray(highs, dtype=float)
-        l = np.asarray(lows, dtype=float)
+        low_arr = np.asarray(lows, dtype=float)
         c = np.asarray(closes, dtype=float)
 
         up_move = h[1:] - h[:-1]
-        down_move = l[:-1] - l[1:]
+        down_move = low_arr[:-1] - low_arr[1:]
         plus_dm = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
         minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
         tr = np.maximum.reduce([
-            h[1:] - l[1:],
+            h[1:] - low_arr[1:],
             np.abs(h[1:] - c[:-1]),
-            np.abs(l[1:] - c[:-1]),
+            np.abs(low_arr[1:] - c[:-1]),
         ])
     else:
         h = [float(x) for x in highs]
-        l = [float(x) for x in lows]
+        low_arr = [float(x) for x in lows]
         c = [float(x) for x in closes]
 
         up_move = [h[i] - h[i - 1] for i in range(1, len(h))]
-        down_move = [l[i - 1] - l[i] for i in range(1, len(l))]
+        down_move = [low_arr[i - 1] - low_arr[i] for i in range(1, len(low_arr))]
         plus_dm = [um if um > dm and um > 0 else 0.0 for um, dm in zip(up_move, down_move)]
         minus_dm = [dm if dm > um and dm > 0 else 0.0 for um, dm in zip(up_move, down_move)]
         tr = [
-            max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1]))
+            max(h[i] - low_arr[i], abs(h[i] - c[i - 1]), abs(low_arr[i] - c[i - 1]))
             for i in range(1, len(c))
         ]
 
