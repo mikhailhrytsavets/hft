@@ -29,7 +29,7 @@ max_dca_levels            = 5
 dca_risk_multiplier       = 1.40
 
 # — SL / TP / Trailing —
-soft_sl_percent           = -1.5
+soft_sl_percent           = 0.0
 take_profit_percent       = 0.90
 tp1_percent               = 0.35
 tp1_close_ratio           = 0.45
