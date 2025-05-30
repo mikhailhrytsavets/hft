@@ -1,8 +1,14 @@
 import asyncio
-import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import sys
 import types
+from collections import namedtuple
+
+import pytest
+
+from legacy.core.data import Bar
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 pybit = types.ModuleType("pybit")
 pybit.exceptions = types.SimpleNamespace(InvalidRequestError=Exception)
 sys.modules.setdefault("pybit", pybit)
@@ -37,10 +43,6 @@ sys.modules.setdefault("urllib3", urllib3_mod)
 aiohttp_mod = types.ModuleType("aiohttp")
 aiohttp_mod.ClientSession = object
 sys.modules.setdefault("aiohttp", aiohttp_mod)
-from collections import namedtuple
-import pytest
-
-from legacy.core.data import Bar
 
 Trade = namedtuple("Trade", "price qty ts")
 
