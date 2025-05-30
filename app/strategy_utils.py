@@ -140,7 +140,7 @@ async def maybe_hedge(
     engine.risk.position.open_time = now
 
     sl_px = engine._soft_sl_price(price, side_flip)
-    await engine._set_sl(hedge_qty, sl_px)
+    await engine._set_sl(hedge_qty, sl_px, price)
 
 
 async def handle_dca(engine, price: float) -> None:
@@ -176,5 +176,5 @@ async def handle_dca(engine, price: float) -> None:
     await notify_telegram(f"➕ DCA {engine.symbol}: +{qty} → avg {new_avg:.4f}")
 
     sl_px = engine._soft_sl_price(new_avg, engine.risk.position.side)
-    await engine._set_sl(total_qty, sl_px)
+    await engine._set_sl(total_qty, sl_px, price)
 
