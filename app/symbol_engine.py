@@ -203,6 +203,20 @@ class SymbolEngine:
         except Exception as exc:
             print(f"[{self.symbol}] ⚠️ Position restore failed: {exc}")
 
+        # restore open SL/TP orders
+        try:
+            orders = self.client.http.get_open_orders(category="linear", symbol=self.symbol)["result"]["list"]
+            for o in orders:
+                if o.get("reduceOnly"):
+                    if o["orderType"] == "Market" and o.get("triggerPrice"):
+                        self.sl_order_id = o["orderId"]
+                        self.current_sl_price = float(o.get("triggerPrice"))
+                    elif o["orderType"] == "Limit" and o["side"] == ("Sell" if self.risk.position.side == "Buy" else "Buy"):
+                        if not self.tp_order_id:
+                            self.tp_order_id = o["orderId"]
+        except Exception as exc:
+            print(f"[{self.symbol}] ⚠️ Order restore failed: {exc}")
+
     def _purge_stale_orders(self) -> None:
         """Keep only *one* valid reduce‑only TP Limit order (if any) and cancel others."""
         try:
@@ -683,7 +697,7 @@ class SymbolEngine:
             self.manager.position_closed(self)
 
     async def _set_sl(self, qty: float, sl_price: float) -> None:
-        """Record stop price without placing orders on the exchange."""
+        """Place a reduce-only stop order and store its ``orderId``."""
         step = self.precision.step(self.client.http, self.symbol)
         qty_r = snap_qty(qty, step)
 
@@ -694,8 +708,54 @@ class SymbolEngine:
             elif self.risk.position.side == "Sell" and sl_price <= current:
                 sl_price = current * 1.001
 
+        # cancel previous SL order if any
+        if self.sl_order_id:
+            try:
+                await self.client.cancel_order(
+                    category="linear", symbol=self.symbol, orderId=self.sl_order_id
+                )
+            except Exception:
+                pass
+
+        link_id = self.client.gen_link_id("sl")
+        resp = await self.client.create_reduce_only_sl(
+            self.risk.position.side or "Buy", qty_r, sl_price, order_link_id=link_id
+        )
+        order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
+
         self.current_sl_price = sl_price
-        self.sl_order_id = None
+        self.sl_order_id = order_id
+
+    async def _set_tp_limit(self, qty: float, price: float) -> None:
+        """Place a reduce-only TP limit order and store ``orderId``."""
+        step = self.precision.step(self.client.http, self.symbol)
+        qty_r = snap_qty(qty, step)
+        if qty_r <= 0:
+            return
+
+        if self.tp_order_id:
+            try:
+                await self.client.cancel_order(
+                    category="linear", symbol=self.symbol, orderId=self.tp_order_id
+                )
+            except Exception:
+                pass
+
+        side_close = "Sell" if self.risk.position.side == "Buy" else "Buy"
+        resp = await self.client.create_limit_order(
+            side_close, qty_r, price, reduce_only=True
+        )
+        order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
+        self.tp_order_id = order_id
+
+    async def _set_tp1(self, qty: float, price: float) -> None:
+        await self._set_tp_limit(qty, price)
+
+    async def _set_tp2(self, qty: float, price: float) -> None:
+        await self._set_tp_limit(qty, price)
+
+    async def _set_tp(self, qty: float, price: float) -> None:
+        await self._set_tp_limit(qty, price)
 
     async def _cancel_all_active_orders(self):
         try:
