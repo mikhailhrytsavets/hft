@@ -27,9 +27,8 @@ except Exception:  # pragma: no cover - when numpy missing / import fail
 # ---------------------------------------------------------------------------
 # - ``src/core/indicators.py`` exists but functions are implemented with Python
 #   loops rather than NumPy vectorisation.
-# - ``src/strategy/entry.py`` implements ``BounceEntry`` and
-#   ``is_reversal_candle`` but file name differs from the desired
-#   ``bounce_entry.py``.
+# - ``src/strategy/bounce_entry.py`` implements ``BounceEntry`` and
+#   ``is_reversal_candle``.
 # - ``src/strategy/dca.py`` already provides ``SmartDCA`` with ATR based step
 #   calculation and several filters.
 # - ``src/risk/guard.py`` defines ``RiskGuard`` though it lacks drawdown and

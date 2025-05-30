@@ -18,7 +18,7 @@ from app.exchange import BybitClient
 from app.market_features import MarketFeatures
 from app.notifier import notify_telegram
 from app.risk import RiskManager
-from src.strategy.entry import BounceEntry
+from src.strategy.bounce_entry import BounceEntry
 from app.signal_engine import SignalEngine
 from app.utils import snap_qty
 from app.strategy_utils import (
