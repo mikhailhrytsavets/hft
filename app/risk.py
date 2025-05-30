@@ -1,10 +1,9 @@
-import asyncio
 from collections import deque
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from app.config import settings
 from app.notifier import notify_telegram
-from src.core.indicators import compute_rsi, compute_adx_info, compute_adx
+from legacy.core.indicators import compute_rsi, compute_adx_info, compute_adx
 
 from app.exchange import BybitClient
 
@@ -19,12 +18,16 @@ class Position:
         self.open_time = None
         self.initial_qty = 0.0
         self.realized_pnl = 0.0
+        self.today_trades = 0
+        self.today_date = date.today()
         self.entry_value = 0.0
 
 class RiskManager:
     EQUITY_FILE = Path(__file__).parent.parent / "start_equity.txt"
     active_positions: set[str] = set()
     position_volumes: dict[str, float] = {}
+    today_trades: int = 0
+    today_date: date = date.today()
 
     def __init__(self, symbol: str):
         self.symbol = symbol
@@ -342,3 +345,11 @@ class RiskManager:
             return "SOFT_SL"
 
         return None
+
+    # ----- day-trade counter -----
+    def inc_trade(self):
+        if date.today() != self.today_date:
+            self.today_date = date.today()
+            self.today_trades = 0
+        self.today_trades += 1
+

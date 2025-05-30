@@ -4,7 +4,7 @@ import pytest
 
 np = pytest.importorskip("numpy")
 
-from src.core.indicators_vectorized import atr, compute_adx, compute_rsi
+from legacy.core.indicators_vectorized import atr, compute_adx, compute_rsi
 
 
 # --- tiny Python reference versions (for correctness check) --------------------

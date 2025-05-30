@@ -1,5 +1,6 @@
 import asyncio
-import sys, os
+import sys
+import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import types
 pybit = types.ModuleType("pybit")
@@ -39,7 +40,7 @@ sys.modules.setdefault("aiohttp", aiohttp_mod)
 from collections import namedtuple
 import pytest
 
-from src.core.data import Bar
+from legacy.core.data import Bar
 
 Trade = namedtuple("Trade", "price qty ts")
 

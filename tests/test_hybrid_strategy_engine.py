@@ -1,6 +1,7 @@
 import math
 import pytest
-import types, sys
+import types
+import sys
 
 # provide minimal settings stub before importing engine
 trading = types.SimpleNamespace(leverage=1, enable_hedging=False, candle_interval_sec=1,
@@ -28,7 +29,7 @@ class DummyClient:
 
 sys.modules['app.exchange'] = types.SimpleNamespace(BybitClient=DummyClient)
 
-from app.hybrid_strategy_engine import HybridStrategyEngine
+from app.hybrid_strategy_engine import HybridStrategyEngine  # noqa: E402
 
 
 def test_initialization_and_attributes():
@@ -67,3 +68,40 @@ def test_spread_zscore_computation():
         var = sum((x - mean) ** 2 for x in engine.spread_history) / len(engine.spread_history)
         z = (engine.spread_history[-1] - mean) / (math.sqrt(var) if var > 0 else 1)
         assert abs(z) < 1.0
+
+
+@pytest.mark.asyncio
+async def test_mm_and_stat_arb_activation(monkeypatch):
+    trading.enable_mm = True
+    trading.enable_stat_arb = True
+
+    async def dummy_ws(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(sys.modules['app.exchange'].BybitClient, 'ws_multi', dummy_ws)
+    async def dummy_run(self):
+        return
+    monkeypatch.setattr(sys.modules['app.hybrid_strategy_engine'].SymbolEngine, 'run', dummy_run)
+    engine = HybridStrategyEngine('BTCUSDT', 'ETHUSDT')
+    engine.ref_price = 1.0
+    await engine.run()
+    assert engine.mm_active
+    assert engine.stat_arb_active
+
+@pytest.mark.asyncio
+async def test_mm_disabled(monkeypatch):
+    trading.enable_mm = False
+    trading.enable_stat_arb = False
+
+    async def dummy_ws(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(sys.modules['app.exchange'].BybitClient, 'ws_multi', dummy_ws)
+    async def dummy_run(self):
+        return
+    monkeypatch.setattr(sys.modules['app.hybrid_strategy_engine'].SymbolEngine, 'run', dummy_run)
+    engine = HybridStrategyEngine('BTCUSDT', 'ETHUSDT')
+    engine.ref_price = 1.0
+    await engine.run()
+    assert not engine.mm_active
+    assert not engine.stat_arb_active

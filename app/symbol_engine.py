@@ -1,5 +1,4 @@
 import asyncio
-import math
 import time
 from datetime import datetime
 from typing import Optional
@@ -7,8 +6,7 @@ from collections import deque, defaultdict
 import statistics
 
 from app.indicators import CandleAggregator
-from src.core.data import OHLCCollector, Bar
-from src.core.indicators import compute_adx, compute_adx_info
+from legacy.core.data import OHLCCollector, Bar
 
 from pybit.exceptions import InvalidRequestError
 from app.config import settings
@@ -18,7 +16,7 @@ from app.exchange import BybitClient
 from app.market_features import MarketFeatures
 from app.notifier import notify_telegram
 from app.risk import RiskManager
-from src.strategy.bounce_entry import BounceEntry
+from legacy.strategy.bounce_entry import BounceEntry
 from app.signal_engine import SignalEngine
 from app.utils import snap_qty
 from app.strategy_utils import (

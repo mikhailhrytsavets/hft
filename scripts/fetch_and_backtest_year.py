@@ -3,7 +3,12 @@
 One-shot: download all 5-minute data for given year & symbols, then run
 scripts/backtest_year.py and print KPI table.
 """
-import argparse, subprocess, sys, json, pathlib, tomllib
+import argparse
+import subprocess
+import sys
+import json
+import pathlib
+import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DL   = [sys.executable, "-m", "utils.download_klines"]

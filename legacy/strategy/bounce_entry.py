@@ -87,7 +87,7 @@ class BounceEntry:
         if len(close_window) < 20:
             return None
 
-        from src.core import indicators
+        from legacy.core import indicators
 
         lower, _, upper = indicators.bollinger(list(close_window), 20, bb_dev)
         rsi_v = indicators.rsi(list(close_window), 14)
