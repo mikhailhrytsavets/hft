@@ -11,85 +11,91 @@ demo          = true
 place_orders  = true
 channel_type  = "linear"
 symbols       = [
-  "BTCUSDT","ETHUSDT","SOLUSDT","DOGEUSDT",
-  "SUIUSDT","XRPUSDT","ADAUSDT","1000PEPEUSDT"
+  "BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT",
+  "ADAUSDT","DOGEUSDT","AVAXUSDT","DOTUSDT","1000SHIBUSDT",
+  "TRXUSDT","MAGICUSDT","LINKUSDT","LTCUSDT","BCHUSDT",
+  "ATOMUSDT","OPUSDT","SUIUSDT","ARBUSDT","1000PEPEUSDT"
 ]
 
-###############################  Core trading  #################################
+############################ 2. CORE TRADING ###################################
 [trading]
-leverage                  = 50            # плечо Bybit
-initial_risk_percent      = 0.5          # риск первой сделки (% от equity)
+# — риск и плечо —
+leverage                  = 10
+initial_risk_percent      = 1.0
+max_position_risk_percent = 10.0          # ≤ 10 % equity суммарно
 
-# — глобальный риск-кэп —
-enable_risk_cap           = true
-max_position_risk_percent = 20.0          # суммарный открытый риск ≤20 % equity
-
-# — DCA (SmartDCA всё равно применит свои капы) —
-max_dca_levels            = 4
-dca_risk_multiplier       = 1.30
+# — усреднение (Smart-DCA) —
+max_dca_levels            = 3
+dca_risk_multiplier       = 1.4
 
 # — SL / TP / Trailing —
-soft_sl_percent           = -50.0
-take_profit_percent       = 1.0
-tp1_percent               = 0.35
-tp1_close_ratio           = 0.45
-tp2_percent               = 0.70
-tp2_close_ratio           = 0.30
-trailing_distance_percent = 0.20
-break_even_after_minutes  = 0
-min_profit_to_be          = 0.30
+soft_sl_percent           = 1.0
+use_atr_stop              = true
+atr_stop_multiplier       = 1.2
+hard_sl_percent           = 1.5
+take_profit_percent       = 4.0
+tp1_percent               = 2.0
+tp1_close_ratio           = 0.5
+tp2_percent               = 4.0
+tp2_close_ratio           = 0.5
+trailing_distance_percent = 0.4
+break_even_after_minutes  = 10
+min_profit_to_be          = 0.2
 
-# Hybrid strategy options
-strategy_mode            = "hybrid"
-enable_mm               = false
-mm_spread_percent       = 0.2
-mm_refresh_seconds      = 10
-enable_mom_filter       = false
-momentum_period         = 5
-use_ml_scoring          = false
-use_atr_stop            = true
-atr_stop_multiplier     = 1.5
-hard_sl_percent         = 2.0
-enable_stat_arb         = true
-stat_arb_entry_z        = 1.5
-stat_arb_exit_z         = 0.5
-stat_arb_stop_z         = 4.0
-# ⚠️ Параметры действительно используются HybridStrategyEngine
+# — HYBRID-режим —
+strategy_mode             = "hybrid"
 
-# — опциональные фильтры (старый код) —
-enable_rsi_filter         = true
-rsi_period                = 14
-rsi_overbought            = 70.0
-rsi_oversold              = 30.0
+## Market-Making (отключён пока не проверите риски)
+enable_mm            = false
+mm_spread_percent    = 0.15
+mm_refresh_seconds   = 8
+mm_notional          = 5
 
-use_adx_filter            = true
-adx_period                = 14
-adx_threshold             = 25.0
+## Momentum-filter
+enable_mom_filter    = true
+momentum_period      = 5
 
-# — хедж —
-enable_hedging            = true
-max_hedges                = 5
-hedge_delay_seconds       = 2
-candle_interval_sec       = 1     # длина свечи (с) для быстрой инициализации
+## ML-скрининг (если есть модель)
+use_ml_scoring       = false
 
-########################  Multi-time-frame filter  #############################
+## Statistical Arbitrage (включается выборочно на связанных парах)
+enable_stat_arb      = false
+stat_arb_entry_z     = 1.5
+stat_arb_exit_z      = 0.4
+stat_arb_stop_z      = 3.0
+
+## Hedging (off по-умолчанию)
+enable_hedging       = false
+max_hedges           = 1
+hedge_delay_seconds  = 2
+
+# — классические фильтры (включайте по одному) —
+enable_rsi_filter    = false
+rsi_period           = 14
+rsi_overbought       = 70
+rsi_oversold         = 30
+
+use_adx_filter       = false
+adx_period           = 14
+adx_threshold        = 25
+
+########################### 3. MULTI-TF FILTER #################################
 [multi_tf]
 enable              = false
 intervals           = ["1m","3m","5m"]
 weights             = { "1m" = 0.5, "3m" = 0.3, "5m" = 0.2 }
-update_seconds      = 15
+update_seconds      = 20
 trend_confirm_bars  = 2
 
-#############################  Global risk  ####################################
+############################ 4. GLOBAL RISK ####################################
 [risk]
-daily_drawdown_percent       = -99.0
+daily_drawdown_percent       = -5.0
 enable_daily_drawdown_guard  = true
-daily_profit_percent         =  0.0
-enable_daily_profit_guard    = false
-max_open_positions           = 8            # фиксировано по ТЗ
-daily_trades_limit          = 1000
-enable_daily_trades_guard   = true
-
+daily_profit_percent         =  5.0
+enable_daily_profit_guard    = true
+daily_trades_limit           = 20
+enable_daily_trades_guard    = true
+max_open_positions           = 20
 ###########################  Telegram notifier  ################################
 [telegram]
 bot_token = "7994411518:AAHpNIzjjN3TOl4TvYbEF7B2_Bxod3IxDTE"
@@ -104,22 +110,89 @@ threshold_k        =  1.8
 symbol_weights     = {}
 symbol_threshold_k = {}
 
-######################  Per-symbol overrides (symbol_params)  ##################
-# Дефолты из SymbolParams (если секция не указана):
-#   atr_period = 14, bb_dev = 2.0, dca_max = 2, hedge_ratio = 0.50
+########################### 7. PER-SYMBOL OVERRIDES ###########################
+# Параметры, отличающиеся от глобальных дефолтов:
+#   • atr_period  – период ATR для стоп-лосса
+#   • bb_dev      – σ для Bollinger Bands (шире = > волатильность)
+#   • dca_max     – макс. уровней усреднения
+#   • hedge_ratio – доля хеджа (0.5 = 50 %)
+#   • ref_symbol  – пара для Stat-Arb (включится, если enable_stat_arb=true)
 
+# ─────────────  MAJORS  ─────────────
 [symbol_params.BTCUSDT]
 dca_max     = 3
-hedge_ratio = 0.50     
+bb_dev      = 2.0
+ref_symbol  = "ETHUSDT"
 
 [symbol_params.ETHUSDT]
 dca_max     = 3
-hedge_ratio = 0.50     
+bb_dev      = 2.0
+ref_symbol  = "BTCUSDT"
+
+[symbol_params.BNBUSDT]
+bb_dev      = 2.0
+
+[symbol_params.SOLUSDT]
+bb_dev      = 2.2       # ↑ волатильность
+
+# ───────────  LARGE-CAP ALTS  ───────────
+[symbol_params.XRPUSDT]
+bb_dev      = 2.2
+dca_max     = 2
+
+[symbol_params.ADAUSDT]
+bb_dev      = 2.2
+dca_max     = 2
+
+[symbol_params.DOGEUSDT]
+bb_dev      = 2.4
+dca_max     = 2
+
+[symbol_params.AVAXUSDT]
+bb_dev      = 2.4
+dca_max     = 2
+
+[symbol_params.DOTUSDT]
+bb_dev      = 2.2
+dca_max     = 2
+
+[symbol_params.MAGICUSDT]
+bb_dev      = 2.2
+dca_max     = 2
+
+[symbol_params.LINKUSDT]
+bb_dev      = 2.2
+
+[symbol_params.LTCUSDT]
+bb_dev      = 2.4
+
+[symbol_params.BCHUSDT]
+bb_dev      = 2.4
+
+[symbol_params.ATOMUSDT]
+bb_dev      = 2.4
+
+[symbol_params.OPUSDT]
+bb_dev      = 2.4
+
+[symbol_params.SUIUSDT]
+bb_dev      = 2.5
+dca_max     = 2
+
+[symbol_params.ARBUSDT]
+bb_dev      = 2.5
+dca_max     = 2
+
+# ───────────  HIGH-VOL / MEME  ───────────
+[symbol_params.1000SHIBUSDT]
+bb_dev      = 2.6
+dca_max     = 1
+
+[symbol_params.TRXUSDT]
+bb_dev      = 2.2       # TRX менее волатилен, оставляем 2.2
 
 [symbol_params.1000PEPEUSDT]
-bb_dev      = 2.5      # расширенный BB
+bb_dev      = 2.8
 dca_max     = 1
-hedge_ratio = 0.30    
-
-# Остальные пары (SOL, DOGE, SUI, XRP, ADA) унаследуют дефолты.
-################################################################################
+atr_period  = 21         # сглаживаем стоп-лосс
+hedge_ratio = 0.30
