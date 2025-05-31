@@ -3,9 +3,6 @@ import pytest
 import types
 import sys
 
-# skip if numpy missing as SymbolEngine depends on it
-pytest.importorskip("numpy")
-
 # provide minimal settings stub before importing engine
 trading = types.SimpleNamespace(leverage=1, enable_hedging=False, candle_interval_sec=1,
                                 rsi_period=14, adx_period=14)
@@ -13,7 +10,6 @@ entry_score = types.SimpleNamespace(symbol_weights={}, weights={}, threshold_k=1
 settings_stub = types.SimpleNamespace(bybit=types.SimpleNamespace(api_key="", api_secret="", testnet=False, demo=False, place_orders=False, channel_type="linear"),
                                       trading=trading, risk=types.SimpleNamespace(max_open_positions=0), telegram=None, entry_score=entry_score, multi_tf=types.SimpleNamespace(enable=False, intervals=[]), symbol_params={})
 sys.modules['app.config'] = types.SimpleNamespace(settings=settings_stub)
-sys.modules['app.indicators'] = types.SimpleNamespace(CandleAggregator=object)
 
 class DummyClient:
     def __init__(self, symbol, api_key="", api_secret="", testnet=False, demo=False, channel_type="linear", place_orders=True):

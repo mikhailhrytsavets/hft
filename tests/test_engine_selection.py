@@ -39,10 +39,15 @@ class DummyClient:
 
 sys.modules['app.exchange'] = types.SimpleNamespace(BybitClient=DummyClient)
 
-from app.symbol_engine_manager import SymbolEngineManager
-from app.mean_reversion_engine import MeanReversionEngine
+from app.symbol_engine_manager import SymbolEngineManager, HybridStrategyEngine, SymbolEngine
 
 
-def test_engine_class():
+def test_engine_class_hybrid():
     mgr = SymbolEngineManager(["BTCUSDT"])
-    assert mgr._engine_class() is MeanReversionEngine
+    assert mgr._engine_class() is HybridStrategyEngine
+
+
+def test_engine_class_basic():
+    settings_stub.trading.strategy_mode = "basic"
+    mgr = SymbolEngineManager(["BTCUSDT"])
+    assert mgr._engine_class() is SymbolEngine
