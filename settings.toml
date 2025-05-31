@@ -10,10 +10,8 @@ testnet       = false
 demo          = true
 place_orders  = true
 channel_type  = "linear"
-symbols       = [
-  "BTCUSDT","ETHUSDT","SOLUSDT","DOGEUSDT",
-  "SUIUSDT","XRPUSDT","ADAUSDT",""
-]
+symbols       = ["BTCUSDT","ETHUSDT","SOLUSDT","DOGEUSDT",
+  "SUIUSDT","XRPUSDT","ADAUSDT"]
 
 ###############################  Core trading  #################################
 [trading]
