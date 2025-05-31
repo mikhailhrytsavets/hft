@@ -1,4 +1,3 @@
-from .risk import RiskManager  # noqa: F401
-from .risk_guard import RiskGuard  # noqa: F401
+from .risk_guard import RiskGuard
 
-__all__: list[str] = []
+__all__ = ["RiskGuard"]
