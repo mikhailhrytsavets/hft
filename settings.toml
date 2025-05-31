@@ -12,7 +12,7 @@ place_orders  = true
 channel_type  = "linear"
 symbols       = [
   "BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT",
-  "ADAUSDT","DOGEUSDT","AVAXUSDT","DOTUSDT","1000SHIBUSDT",
+  "ADAUSDT","DOGEUSDT","AVAXUSDT","DOTUSDT",
   "TRXUSDT","MAGICUSDT","LINKUSDT","LTCUSDT","BCHUSDT",
   "ATOMUSDT","OPUSDT","SUIUSDT","ARBUSDT","1000PEPEUSDT"
 ]
@@ -184,10 +184,6 @@ bb_dev      = 2.5
 dca_max     = 2
 
 # ───────────  HIGH-VOL / MEME  ───────────
-[symbol_params.1000SHIBUSDT]
-bb_dev      = 2.6
-dca_max     = 1
-
 [symbol_params.TRXUSDT]
 bb_dev      = 2.2       # TRX менее волатилен, оставляем 2.2
 
