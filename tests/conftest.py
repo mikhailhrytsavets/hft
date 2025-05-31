@@ -6,9 +6,9 @@ from collections import namedtuple
 
 import pytest
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from legacy.core.data import Bar
 
-Bar = namedtuple("Bar", "open high low close volume start end")
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 pybit = types.ModuleType("pybit")
 pybit.exceptions = types.SimpleNamespace(InvalidRequestError=Exception)
 sys.modules.setdefault("pybit", pybit)
