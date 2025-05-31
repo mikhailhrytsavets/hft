@@ -1,6 +1,5 @@
-from __future__ import annotations
-
 """Market micro-structure features used by strategies."""
+from __future__ import annotations
 
 from collections import deque
 import statistics
