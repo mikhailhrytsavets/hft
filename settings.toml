@@ -75,7 +75,7 @@ rsi_period           = 14
 rsi_overbought       = 70
 rsi_oversold         = 30
 
-use_adx_filter       = false
+use_adx_filter       = true
 adx_period           = 14
 adx_threshold        = 25
 
