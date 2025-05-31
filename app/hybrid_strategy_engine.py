@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import math
 import time
+import statistics
 from collections import deque
 from typing import Optional
 
@@ -121,6 +122,32 @@ class HybridStrategyEngine(SymbolEngine):
             await self._cancel_all_active_orders()
             await self._place_mm_orders(self.mid_price)
 
+    async def _check_stat_arb(self) -> None:
+        if not self.spread_history or self.ref_price is None:
+            return
+        if len(self.spread_history) < 5:
+            return
+        mean = statistics.mean(self.spread_history)
+        if len(self.spread_history) > 1:
+            sd = statistics.stdev(self.spread_history)
+        else:
+            sd = 0.0
+        latest = self.spread_history[-1]
+        z = (latest - mean) / (sd or 1.0)
+        entry_z = settings.trading.stat_arb_entry_z
+        exit_z = settings.trading.stat_arb_exit_z
+        stop_z = settings.trading.stat_arb_stop_z
+        if self.risk.position.qty == 0:
+            if z >= entry_z:
+                await self._open_position("SHORT", getattr(self, "mid_price", latest))
+            elif z <= -entry_z:
+                await self._open_position("LONG", getattr(self, "mid_price", latest))
+        else:
+            if abs(z) <= exit_z:
+                await self._close_position("STAT_ARB_EXIT", getattr(self, "mid_price", latest))
+            elif abs(z) >= stop_z:
+                await self._close_position("HARD_SL", getattr(self, "mid_price", latest))
+
     # ------------------------------------------------------------------
     async def run(self) -> None:
         print(f"🚀 Starting HybridStrategyEngine for {self.symbol} (ref {self.ref_symbol})")
@@ -139,8 +166,25 @@ class HybridStrategyEngine(SymbolEngine):
         await super()._manage_position(price)
         if self.mm_active:
             await self._refresh_mm()
+        if self.stat_arb_active:
+            await self._check_stat_arb()
 
     async def _open_position(self, direction: str, price: float) -> None:
+        if (
+            settings.trading.enable_mom_filter
+            and not self._momentum_ok(direction)
+        ):
+            print(f"[{self.symbol}] ❌ momentum filter")
+            return
+        if settings.trading.use_ml_scoring and not self._ml_evaluate_signal(
+            (
+                self.latest_vbd,
+                self.latest_obi or 0.0,
+                self.latest_spread_z or 0.0,
+            )
+        ):
+            print(f"[{self.symbol}] ❌ ML filter")
+            return
         await super()._open_position(direction, price)
         self.trade_count += 1
 

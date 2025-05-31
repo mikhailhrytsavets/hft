@@ -2,6 +2,7 @@ import math
 import pytest
 import types
 import sys
+import asyncio
 
 # provide minimal settings stub before importing engine
 trading = types.SimpleNamespace(leverage=1, enable_hedging=False, candle_interval_sec=1,
@@ -30,6 +31,7 @@ class DummyClient:
 sys.modules['app.exchange'] = types.SimpleNamespace(BybitClient=DummyClient)
 
 from app.hybrid_strategy_engine import HybridStrategyEngine  # noqa: E402
+from app.symbol_engine import SymbolEngine
 
 
 def test_initialization_and_attributes():
@@ -105,3 +107,21 @@ async def test_mm_disabled(monkeypatch):
     await engine.run()
     assert not engine.mm_active
     assert not engine.stat_arb_active
+
+
+def test_open_position_filters(monkeypatch):
+    trading.enable_mom_filter = True
+    trading.use_ml_scoring = True
+    engine = HybridStrategyEngine("BTCUSDT")
+    engine.market.price_window.extend([100, 99, 98, 97, 96])
+    called = False
+
+    async def dummy_open(self, direction, price):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(SymbolEngine, "_open_position", dummy_open)
+    monkeypatch.setattr(engine, "_ml_evaluate_signal", lambda feats: False)
+
+    asyncio.run(engine._open_position("LONG", 100))
+    assert not called

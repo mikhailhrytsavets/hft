@@ -1,9 +1,10 @@
 from collections import deque
 from datetime import datetime, timedelta, date
 from pathlib import Path
-from app.config import settings
+from app.config import settings, SymbolParams
 from app.notifier import notify_telegram
 from legacy.core.indicators import compute_rsi, compute_adx_info, compute_adx
+from legacy.core.indicators import atr as compute_atr
 
 from app.exchange import BybitClient
 
@@ -105,6 +106,12 @@ class RiskManager:
     def _compute_adx(self, period: int) -> float | None:
         closes = [c for _, _, c in self.price_window]
         return compute_adx(closes, period)
+
+    def _compute_atr(self, period: int) -> float:
+        highs = [h for h, _, _ in self.price_window]
+        lows = [l for _, l, _ in self.price_window]
+        closes = [c for _, _, c in self.price_window]
+        return compute_atr(highs, lows, closes, period)
 
     def _need_dca(self, price: float, change: float, now: datetime) -> bool:
         stg = settings.trading
@@ -225,6 +232,26 @@ class RiskManager:
         if self.position.qty == 0:
             return None
         change = self.percent(price, self.position.avg_price)
+
+        if settings.trading.hard_sl_percent:
+            limit = settings.trading.hard_sl_percent
+            if (
+                self.position.side == "Buy" and change <= -limit
+            ) or (
+                self.position.side == "Sell" and change >= limit
+            ):
+                return "HARD_SL"
+
+        if settings.trading.use_atr_stop:
+            period = settings.symbol_params.get(self.symbol, SymbolParams()).atr_period
+            atr_v = self._compute_atr(period)
+            threshold = settings.trading.atr_stop_multiplier * atr_v
+            if (
+                self.position.side == "Buy" and price <= self.position.avg_price - threshold
+            ) or (
+                self.position.side == "Sell" and price >= self.position.avg_price + threshold
+            ):
+                return "SOFT_SL"
 
         # Break-even move
         if (
