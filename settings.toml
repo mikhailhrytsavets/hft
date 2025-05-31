@@ -1,6 +1,6 @@
 [bybit]
-api_key      = ""
-api_secret   = ""
+api_key       = "zf72Bea3s8kMDd031d"          
+api_secret    = "XMfDkNDUNRXWbSAkkSY5Prvz59lWaWIIzgw5"
 symbols      = ["BTCUSDT"]
 testnet      = false
 demo         = false
@@ -19,5 +19,5 @@ max_open_positions     = 5
 daily_trades_limit     = 20
 
 [telegram]
-bot_token = ""
-chat_id   = ""
+bot_token = "7994411518:AAHpNIzjjN3TOl4TvYbEF7B2_Bxod3IxDTE"
+chat_id   = "-1002593601621"
