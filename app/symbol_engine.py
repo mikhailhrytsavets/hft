@@ -744,7 +744,10 @@ class SymbolEngine:
 
         current = current_price
         if current is None:
-            current = self.close_window[-1] if self.close_window else None
+            if self.market.price_window:
+                current = self.market.price_window[-1]
+            else:
+                current = self.close_window[-1] if self.close_window else None
         if current is not None:
             if self.risk.position.side == "Buy" and sl_price >= current:
                 sl_price = current * 0.999
