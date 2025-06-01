@@ -58,7 +58,8 @@ class HttpClient:
 
     @async_retry_rest()
     async def get_risk_limit(self, **params):
-        return await asyncio.to_thread(self.http.get_risk_limit, **params)
+        try:
+            return await asyncio.to_thread(self.http.get_risk_limit, **params)
         except (requests.ConnectionError, urllib3.exceptions.ProtocolError):
             self.http = HTTP(
                 api_key=self.http.api_key,
