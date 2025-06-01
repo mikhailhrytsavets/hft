@@ -1,4 +1,4 @@
-from legacy.strategy.dca import SmartDCA
+from app.strategy.dca import SmartDCA
 
 
 def test_step_distance():

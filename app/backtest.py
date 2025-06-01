@@ -3,10 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from collections import deque
 
-from legacy.core.data import Bar
-from legacy.core import indicators
-from legacy.strategy.bounce_entry import BounceEntry
-from legacy.strategy.manager import PositionManager
+from app.core.data import Bar
+from app.core import indicators
+from app.strategy.bounce_entry import BounceEntry
+from app.strategy.manager import PositionManager
 
 
 class BacktestEngine:

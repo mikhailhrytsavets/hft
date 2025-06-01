@@ -6,7 +6,7 @@ from collections import deque, defaultdict
 import statistics
 
 from app.indicators import CandleAggregator
-from legacy.core.data import OHLCCollector, Bar
+from app.core.data import OHLCCollector, Bar
 
 from pybit.exceptions import InvalidRequestError
 from app.config import settings
@@ -17,7 +17,7 @@ from app.market_features import MarketFeatures
 from app.notifier import notify_telegram
 from app.logbook import log_entry, log_exit
 from app.risk import RiskManager
-from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
+from app.strategy.bounce_entry import BounceEntry, EntrySignal
 from app.signal_engine import SignalEngine
 from app.utils import snap_qty
 from app.strategy_utils import (

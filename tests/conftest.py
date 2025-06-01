@@ -6,9 +6,10 @@ from collections import namedtuple
 
 import pytest
 
-from legacy.core.data import Bar
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from app.core.data import Bar
+
 pybit = types.ModuleType("pybit")
 pybit.exceptions = types.SimpleNamespace(InvalidRequestError=Exception)
 sys.modules.setdefault("pybit", pybit)

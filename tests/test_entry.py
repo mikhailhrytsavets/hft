@@ -1,5 +1,5 @@
 from collections import namedtuple
-from legacy.strategy.bounce_entry import BounceEntry, EntrySignal, is_reversal_candle
+from app.strategy.bounce_entry import BounceEntry, EntrySignal, is_reversal_candle
 
 Bar = namedtuple("Bar", "open high low close volume")
 
