@@ -16,7 +16,7 @@ symbols       = ["BTCUSDT","ETHUSDT","SOLUSDT","DOGEUSDT",
 ###############################  Core trading  #################################
 [trading]
 leverage                  = 20            # плечо Bybit
-initial_risk_percent      = 0.5          # риск первой сделки (% от equity)
+initial_risk_percent      = 1.0         # риск первой сделки (% от equity)
 
 # — глобальный риск-кэп —
 enable_risk_cap           = true
