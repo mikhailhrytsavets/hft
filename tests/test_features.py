@@ -1,5 +1,5 @@
 import asyncio
-from app.market_features import MarketFeatures
+from legacy.market_features import MarketFeatures
 
 
 def test_spread_z(fixture_21_bars):

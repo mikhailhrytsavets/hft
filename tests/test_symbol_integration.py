@@ -1,10 +1,10 @@
 import asyncio
 
-from app.symbol_engine import SymbolEngine
-from app.strategy.bounce_entry import BounceEntry, EntrySignal
-from app.strategy.dca import SmartDCA
-from app.core.data import Bar
-from app.core import indicators
+from legacy.symbol_engine import SymbolEngine
+from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
+from legacy.strategy.dca import SmartDCA
+from legacy.core.data import Bar
+from legacy.core import indicators
 
 
 def test_entry_dca_exit(monkeypatch):
