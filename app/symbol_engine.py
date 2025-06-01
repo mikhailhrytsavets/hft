@@ -702,15 +702,12 @@ class SymbolEngine:
                 f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
             )
             await notify_telegram(msg)
-        # move SL to breakeven with a small profit buffer
-        be = settings.trading.min_profit_to_be
-        if be:
-            if self.risk.position.side == "Buy":
-                sl_px = self.risk.position.avg_price * (1 + be / 100)
-            else:
-                sl_px = self.risk.position.avg_price * (1 - be / 100)
+        # set initial trailing stop after TP1
+        dist = settings.trading.trailing_distance_percent / 100
+        if self.risk.position.side == "Buy":
+            sl_px = price * (1 - dist)
         else:
-            sl_px = self.risk.position.avg_price
+            sl_px = price * (1 + dist)
         await self._set_sl(self.risk.position.qty, sl_px, price)
 
     async def _handle_tp2(self, price: float, reason: str | None = None) -> None:

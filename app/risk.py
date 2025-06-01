@@ -332,7 +332,14 @@ class RiskManager:
             ):
                 self.tp1_done = True
                 self.best_price = price
-                self.trail_price = self.position.avg_price
+                if self.position.side == "Buy":
+                    self.trail_price = price * (
+                        1 - settings.trading.trailing_distance_percent / 100
+                    )
+                else:
+                    self.trail_price = price * (
+                        1 + settings.trading.trailing_distance_percent / 100
+                    )
                 reason = f"TP1 hit at change {change:.2f}%"
                 print(f"[{self.symbol}] {reason}")
                 return "TP1", reason
