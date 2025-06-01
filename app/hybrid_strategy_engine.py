@@ -139,14 +139,30 @@ class HybridStrategyEngine(SymbolEngine):
         stop_z = settings.trading.stat_arb_stop_z
         if self.risk.position.qty == 0:
             if z >= entry_z:
-                await self._open_position("SHORT", getattr(self, "mid_price", latest))
+                await self._open_position(
+                    "SHORT",
+                    getattr(self, "mid_price", latest),
+                    reason=f"stat_arb z={z:.2f}"
+                )
             elif z <= -entry_z:
-                await self._open_position("LONG", getattr(self, "mid_price", latest))
+                await self._open_position(
+                    "LONG",
+                    getattr(self, "mid_price", latest),
+                    reason=f"stat_arb z={z:.2f}"
+                )
         else:
             if abs(z) <= exit_z:
-                await self._close_position("STAT_ARB_EXIT", getattr(self, "mid_price", latest))
+                await self._close_position(
+                    "STAT_ARB_EXIT",
+                    getattr(self, "mid_price", latest),
+                    reason=f"z={z:.2f}"
+                )
             elif abs(z) >= stop_z:
-                await self._close_position("HARD_SL", getattr(self, "mid_price", latest))
+                await self._close_position(
+                    "HARD_SL",
+                    getattr(self, "mid_price", latest),
+                    reason=f"z={z:.2f}"
+                )
 
     # ------------------------------------------------------------------
     async def run(self) -> None:
@@ -169,7 +185,14 @@ class HybridStrategyEngine(SymbolEngine):
         if self.stat_arb_active:
             await self._check_stat_arb()
 
-    async def _open_position(self, direction: str, price: float) -> None:
+    async def _open_position(
+        self,
+        direction: str,
+        price: float,
+        reason: str | None = None,
+        filters: str | None = None,
+        features: str | None = None,
+    ) -> None:
         if (
             settings.trading.enable_mom_filter
             and not self._momentum_ok(direction)
@@ -185,6 +208,6 @@ class HybridStrategyEngine(SymbolEngine):
         ):
             print(f"[{self.symbol}] ❌ ML filter")
             return
-        await super()._open_position(direction, price)
+        await super()._open_position(direction, price, reason, filters, features)
         self.trade_count += 1
 

@@ -116,7 +116,7 @@ def test_open_position_filters(monkeypatch):
     engine.market.price_window.extend([100, 99, 98, 97, 96])
     called = False
 
-    async def dummy_open(self, direction, price):
+    async def dummy_open(self, direction, price, reason=None, filters=None, features=None):
         nonlocal called
         called = True
 

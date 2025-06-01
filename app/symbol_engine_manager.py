@@ -81,7 +81,15 @@ class SymbolEngineManager:
         self.tasks["cmd"] = asyncio.create_task(telegram_command_listener())
         await asyncio.gather(*self.tasks.values())
 
-    async def _maybe_open_position(self, engine: SymbolEngine, direction: str, price: float) -> bool:
+    async def _maybe_open_position(
+        self,
+        engine: SymbolEngine,
+        direction: str,
+        price: float,
+        reason: str | None = None,
+        filters: str | None = None,
+        features: str | None = None,
+    ) -> bool:
         risk_pct = settings.trading.initial_risk_percent
         guard = self.guard
         if settings.risk.enable_daily_trades_guard:
@@ -93,7 +101,7 @@ class SymbolEngineManager:
             return False
         if engine.entry_order_id is not None or engine.risk.position.qty > 0:
             return False
-        await engine._open_position(direction, price)
+        await engine._open_position(direction, price, reason, filters, features)
         self.account.open_positions.append(NS(symbol=engine.symbol, risk_pct=risk_pct))
         guard.inc_trade()
         return True
