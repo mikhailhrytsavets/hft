@@ -4,8 +4,12 @@ from pathlib import Path
 import time
 from app.config import settings, SymbolParams
 from app.notifier import notify_telegram
-from legacy.core.indicators import compute_rsi, compute_adx_info, compute_adx
-from legacy.core.indicators import atr as compute_atr
+from app.core.indicators import (
+    compute_rsi,
+    compute_adx_info,
+    compute_adx,
+)
+from app.core.indicators import atr as compute_atr
 
 from app.exchange import BybitClient
 

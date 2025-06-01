@@ -1,4 +1,4 @@
-from app.features import FeatureCollector
+from app.market_features import FeatureCollector
 
 class SignalEngine:
     def __init__(self, z_threshold=1.2):
