@@ -170,6 +170,8 @@ class SymbolEngine:
         # to avoid Bybit's "duplicate" error on reused IDs
         self.sl_link_id = f"{symbol}-sl"
         self.entry_order_id: Optional[str] = None
+        self._opening: bool = False
+        self._open_lock = asyncio.Lock()
 
         # Streaming will be attached by SymbolEngineManager
         self.manager = None  # set by SymbolEngineManager
@@ -680,6 +682,12 @@ class SymbolEngine:
     # ------------------------------------------------------------------
 
     async def _open_position(self, direction: str, price: float) -> float | None:
+        if self._opening:
+            return None
+        async with self._open_lock:
+            if self._opening:
+                return None
+            self._opening = True
         side = "Buy" if direction == "LONG" else "Sell"
         try:
             if (
@@ -707,29 +715,32 @@ class SymbolEngine:
             ):
                 print(f"[{self.symbol}] 🚫 Total volume limit reached")
                 return
+
+            resp = await self.client.create_market_order(side, qty)
+            order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
+            if order_id:
+                self.entry_order_id = order_id
+                await self._wait_order_fill(order_id)
+                self.entry_order_id = None
+
+            RiskManager.active_positions.add(self.symbol)
+            RiskManager.position_volumes[self.symbol] = volume
+
+            self.risk.position.side = side
+            self.risk.position.qty = qty
+            self.risk.position.avg_price = price
+            self.risk.position.open_time = datetime.utcnow()
+            self.risk.reset_trade()
+
+            # initial SL ------------------------------------------------------
+            sl_price = self._soft_sl_price(price, side)
+            await self._set_sl(qty, sl_price, price)
+            return qty
         except Exception as exc:
             print(f"[{self.symbol}] Qty calc failed: {exc}")
             return None
-        resp = await self.client.create_market_order(side, qty)
-        order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
-        if order_id:
-            self.entry_order_id = order_id
-            await self._wait_order_fill(order_id)
-            self.entry_order_id = None
-
-        RiskManager.active_positions.add(self.symbol)
-        RiskManager.position_volumes[self.symbol] = volume
-
-        self.risk.position.side = side
-        self.risk.position.qty = qty
-        self.risk.position.avg_price = price
-        self.risk.position.open_time = datetime.utcnow()
-        self.risk.reset_trade()
-
-        # initial SL ------------------------------------------------------
-        sl_price = self._soft_sl_price(price, side)
-        await self._set_sl(qty, sl_price, price)
-        return qty
+        finally:
+            self._opening = False
 
     # ------------------------------------------------------------------
     # Position management
