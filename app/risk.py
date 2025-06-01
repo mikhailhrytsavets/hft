@@ -232,7 +232,7 @@ class RiskManager:
 
     async def check_exit(self, price):
         if self.position.qty == 0:
-            return None
+            return None, None
         change = self.percent(price, self.position.avg_price)
 
         if settings.trading.hard_sl_percent:
@@ -242,7 +242,9 @@ class RiskManager:
             ) or (
                 self.position.side == "Sell" and change >= limit
             ):
-                return "HARD_SL"
+                reason = f"HARD_SL: change {change:.2f}% exceeds {limit}%"
+                print(f"[{self.symbol}] {reason}")
+                return "HARD_SL", reason
 
         period = settings.symbol_params.get(self.symbol, SymbolParams()).atr_period
         if settings.trading.use_atr_stop and len(self.price_window) >= period + 1:
@@ -260,7 +262,11 @@ class RiskManager:
             ) or (
                 self.position.side == "Sell" and price >= self.position.avg_price + threshold
             ):
-                return "SOFT_SL"
+                reason = (
+                    f"ATR_STOP: price move {abs(change):.2f}% >= {threshold:.2f}"
+                )
+                print(f"[{self.symbol}] {reason}")
+                return "SOFT_SL", reason
 
         # Break-even move
         if (
@@ -301,7 +307,9 @@ class RiskManager:
             and datetime.utcnow() - self.position.open_time
             > timedelta(minutes=settings.trading.max_position_minutes)
         ):
-            return "TIMEOUT"
+            reason = "TIMEOUT: position held too long"
+            print(f"[{self.symbol}] {reason}")
+            return "TIMEOUT", reason
 
         # Fallback TP when partial TPs are disabled
         if settings.trading.tp1_percent is None and settings.trading.tp2_percent is None:
@@ -311,7 +319,9 @@ class RiskManager:
             ) or (
                 self.position.side == "Sell" and change <= -tp_pct
             ):
-                return "TP"
+                reason = "TP: fallback take profit"
+                print(f"[{self.symbol}] {reason}")
+                return "TP", reason
 
         # TP1
         if not self.tp1_done:
@@ -323,7 +333,9 @@ class RiskManager:
                 self.tp1_done = True
                 self.best_price = price
                 self.trail_price = self.position.avg_price
-                return "TP1"
+                reason = f"TP1 hit at change {change:.2f}%"
+                print(f"[{self.symbol}] {reason}")
+                return "TP1", reason
         if self.tp1_done and not self.tp2_done:
             if settings.trading.tp2_percent is not None:
                 if (
@@ -333,7 +345,9 @@ class RiskManager:
                 ):
                     self.tp2_done = True
                     self.best_price = price
-                    return "TP2"
+                    reason = f"TP2 hit at change {change:.2f}%"
+                    print(f"[{self.symbol}] {reason}")
+                    return "TP2", reason
 
         # trailing update
         if self.tp1_done and (settings.trading.tp2_percent is None or self.tp2_done):
@@ -343,14 +357,18 @@ class RiskManager:
                 if self.trail_price is None or new_trail > self.trail_price:
                     self.trail_price = new_trail
                 if price <= self.trail_price:
-                    return "TRAIL"
+                    reason = f"TRAIL stop hit at {price}"
+                    print(f"[{self.symbol}] {reason}")
+                    return "TRAIL", reason
             else:
                 self.best_price = min(self.best_price or price, price)
                 new_trail = self.best_price * (1 + settings.trading.trailing_distance_percent / 100)
                 if self.trail_price is None or new_trail < self.trail_price:
                     self.trail_price = new_trail
                 if price >= self.trail_price:
-                    return "TRAIL"
+                    reason = f"TRAIL stop hit at {price}"
+                    print(f"[{self.symbol}] {reason}")
+                    return "TRAIL", reason
 
         # TP
         if (
@@ -358,14 +376,18 @@ class RiskManager:
         ) or (
             self.position.side == "Sell" and change <= -settings.trading.take_profit_percent
         ):
-            return "TP"
+            reason = f"TP hit at change {change:.2f}%"
+            print(f"[{self.symbol}] {reason}")
+            return "TP", reason
 
         # DCA
         if self._need_dca(price, change, datetime.utcnow()):
             self.dca_levels += 1
             self.last_dca_price = price
             self.last_dca_time = datetime.utcnow()
-            return "DCA"
+            reason = f"DCA level {self.dca_levels+1} triggered"
+            print(f"[{self.symbol}] {reason}")
+            return "DCA", reason
 
         # Soft SL — по времени
         if settings.trading.soft_sl_minutes > 0:
@@ -373,14 +395,17 @@ class RiskManager:
                 if (self.position.side == "Buy" and change < 0) or (
                     self.position.side == "Sell" and change > 0
                 ):
-                    return "SOFT_SL"
+                    reason = "SOFT_SL: time based"
+                    print(f"[{self.symbol}] {reason}")
+                    return "SOFT_SL", reason
 
         # Soft SL — по убытку
         if (self.position.side == "Buy" and change <= settings.trading.soft_sl_percent) or \
            (self.position.side == "Sell" and change >= -settings.trading.soft_sl_percent):
-            return "SOFT_SL"
-
-        return None
+            reason = f"SOFT_SL: loss {change:.2f}%"
+            print(f"[{self.symbol}] {reason}")
+            return "SOFT_SL", reason
+        return None, None
 
     # ----- day-trade counter -----
     def inc_trade(self):

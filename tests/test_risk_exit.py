@@ -35,11 +35,11 @@ for _ in range(20):
 
 @pytest.mark.asyncio
 async def test_hard_sl_trigger():
-    sig = await rm.check_exit(97)
+    sig, reason = await rm.check_exit(97)
     assert sig == "HARD_SL"
 
 @pytest.mark.asyncio
 async def test_atr_stop_trigger():
     trading.hard_sl_percent = 0.0
-    sig = await rm.check_exit(96)
+    sig, reason = await rm.check_exit(96)
     assert sig == "SOFT_SL"

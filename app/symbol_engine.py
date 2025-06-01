@@ -381,6 +381,11 @@ class SymbolEngine:
             z        = self.signal.features.zscore()
             spread_z = self.latest_spread_z or 0.0
             vol      = self.market.update_volatility(price)
+            features = (
+                f"z={z:.2f}, obi={self.latest_obi or 0.0:.2f}, "
+                f"vbd={self.latest_vbd:.2f}, spread={spread_z:.2f}, "
+                f"volatility={vol:.2f}"
+            )
             self.latest_vol = vol
             self.vol_history.append(vol)
             candle = self._candle_agg.add_tick(price, time.time())
@@ -463,12 +468,24 @@ class SymbolEngine:
                         print(f"[{self.symbol}] 🚫 multi-TF filter (bounce)")
                         sig = None
                 if sig:
+                    reason = f"Bounce {sig.value}"
                     if self.manager:
                         await self.manager._maybe_open_position(
-                            self, sig.value, price
+                            self,
+                            sig.value,
+                            price,
+                            reason,
+                            "none",
+                            features,
                         )
                     else:
-                        await self._open_position(sig.value, price)
+                        await self._open_position(
+                            sig.value,
+                            price,
+                            reason,
+                            "none",
+                            features,
+                        )
                     continue
 
             mode = "range"
@@ -513,10 +530,24 @@ class SymbolEngine:
                     if htf == "DOWN" and direction == "LONG":
                         print(f"[{self.symbol}] 🚫 HTF filter")
                         continue
+                reason = f"score={score:.2f} > thr" if direction == "SHORT" else f"score={score:.2f} < -thr"
                 if self.manager:
-                    await self.manager._maybe_open_position(self, direction, price)
+                    await self.manager._maybe_open_position(
+                        self,
+                        direction,
+                        price,
+                        reason,
+                        "none",
+                        features,
+                    )
                 else:
-                    await self._open_position(direction, price)
+                    await self._open_position(
+                        direction,
+                        price,
+                        reason,
+                        "none",
+                        features,
+                    )
                 continue  # wait next tick
 
             # ---------------- Exit / DCA --------------------------------
@@ -526,7 +557,14 @@ class SymbolEngine:
     # Entry helpers
     # ------------------------------------------------------------------
 
-    async def _open_position(self, direction: str, price: float) -> None:
+    async def _open_position(
+        self,
+        direction: str,
+        price: float,
+        reason: str | None = None,
+        filters: str | None = None,
+        features: str | None = None,
+    ) -> None:
         side = "Buy" if direction == "LONG" else "Sell"
         try:
             if (
@@ -563,7 +601,15 @@ class SymbolEngine:
             self.entry_order_id = order_id
             await self._wait_order_fill(order_id)
             self.entry_order_id = None
-        await notify_telegram(f"📥 Entry {self.symbol} {side} qty={qty}")
+        log_msg = (
+            f"📥 Entry {self.symbol} {side} qty={qty:.2f}\n"
+            f"📊 Reason: {reason or 'n/a'}\n"
+            f"✅ Filters passed: {filters or 'none'}"
+        )
+        if features:
+            log_msg += f"\n📈 Features: {features}"
+        print(f"[{self.symbol}] {log_msg}")
+        await notify_telegram(log_msg)
 
         RiskManager.active_positions.add(self.symbol)
         RiskManager.position_volumes[self.symbol] = volume
@@ -582,7 +628,7 @@ class SymbolEngine:
     # Position management
     # ------------------------------------------------------------------
     async def _manage_position(self, price: float) -> None:
-        signal = await self.risk.check_exit(price)
+        signal, reason = await self.risk.check_exit(price)
         if not signal:
             if self.risk.tp1_done and self.risk.trail_price and self.current_sl_price is not None:
                 if (
@@ -597,10 +643,13 @@ class SymbolEngine:
                     )
             return
         if signal == "DCA":
+            print(f"[{self.symbol}] Exit signal DCA: {reason}")
             await handle_dca(self, price)
         elif signal == "TP2":
+            print(f"[{self.symbol}] Exit signal TP2: {reason}")
             await self._handle_tp2(price)
         elif signal == "TP1":
+            print(f"[{self.symbol}] Exit signal TP1: {reason}")
             await self._handle_tp1(price)
         else:  # TP, SOFT_SL, TRAIL or TIMEOUT
             if signal in ("SOFT_SL", "TRAIL") and settings.trading.enable_hedging:
@@ -613,7 +662,7 @@ class SymbolEngine:
                     signal,
                 )
                 return
-            await self._close_position(signal, price)
+            await self._close_position(signal, price, reason)
 
 
     async def _handle_tp1(self, price: float) -> None:
@@ -703,7 +752,7 @@ class SymbolEngine:
         )
         await notify_telegram(msg)
 
-    async def _close_position(self, exit_signal: str, mkt_price: float) -> None:
+    async def _close_position(self, exit_signal: str, mkt_price: float, reason: str | None = None) -> None:
         side_close = "Sell" if self.risk.position.side == "Buy" else "Buy"
         step       = self.precision.step(self.client.http, self.symbol)
         qty_close  = snap_qty(self.risk.position.qty, step)
@@ -734,10 +783,15 @@ class SymbolEngine:
         net_usdt = self.risk.realized_pnl
         emoji = "🟢" if net_usdt > 0 else "🔴"
         sign  = "+" if net_usdt > 0 else ""
+        duration = datetime.utcnow() - self.risk.position.open_time
+        dur_str = str(duration).split(".")[0]
         msg = (
             f"{emoji} <b>{exit_signal} {self.symbol}</b>\n"
+            f"📉 Reason: {reason or 'n/a'}\n"
             f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
+            f"🕑 Duration: {dur_str}"
         )
+        print(f"[{self.symbol}] {exit_signal} close: {reason}")
         await notify_telegram(msg)
         async with DB() as db:
             await db.log(side_close, qty_close, mkt_price, self.risk.position.avg_price, net_usdt)

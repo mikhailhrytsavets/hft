@@ -103,7 +103,7 @@ async def maybe_hedge(
     stg = settings.trading
 
     if engine.hedge_cycle_count >= stg.max_hedges:
-        await engine._close_position(reason, price)
+        await engine._close_position(reason, price, reason)
         return
 
     if stg.hedge_delay_seconds > 0:
@@ -113,17 +113,17 @@ async def maybe_hedge(
         closes = [c for _, _, c in engine.risk.price_window]
         adx = compute_adx(closes, settings.trading.adx_period)
         if adx is None or adx < stg.hedge_adx_threshold:
-            await engine._close_position(reason, price)
+            await engine._close_position(reason, price, reason)
             return
 
     step = engine.precision.step(engine.client.http, engine.symbol)
     hedge_qty = snap_qty(qty * stg.hedge_size_ratio, step)
     if hedge_qty <= 0:
-        await engine._close_position(reason, price)
+        await engine._close_position(reason, price, reason)
         return
 
     side_flip = "Sell" if side == "Buy" else "Buy"
-    await engine._close_position(reason, price)
+    await engine._close_position(reason, price, reason)
     try:
         await engine.client.create_market_order(side_flip, hedge_qty)
     except Exception as exc:  # pragma: no cover - network call
