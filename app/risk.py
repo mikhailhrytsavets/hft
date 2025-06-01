@@ -1,6 +1,7 @@
 from collections import deque
 from datetime import datetime, timedelta, date
 from pathlib import Path
+import time
 from app.config import settings, SymbolParams
 from app.notifier import notify_telegram
 from legacy.core.indicators import compute_rsi, compute_adx_info, compute_adx
@@ -52,6 +53,7 @@ class RiskManager:
         self.last_htf_fetch: datetime | None = None
         self.last_htf_trend: str | None = None
         self._load_equity()
+        self._last_atr_log: float = 0.0
 
     # ------------------------------------------------------------------
     def _load_equity(self) -> None:
@@ -242,9 +244,16 @@ class RiskManager:
             ):
                 return "HARD_SL"
 
-        if settings.trading.use_atr_stop:
-            period = settings.symbol_params.get(self.symbol, SymbolParams()).atr_period
+        period = settings.symbol_params.get(self.symbol, SymbolParams()).atr_period
+        if settings.trading.use_atr_stop and len(self.price_window) >= period + 1:
             atr_v = self._compute_atr(period)
+            now = time.time()
+            if now - self._last_atr_log >= 1.0:
+                print(f"[{self.symbol}] ATR={atr_v:.5f}")
+                self._last_atr_log = now
+            if atr_v == 0:
+                return None
+            atr_v = max(atr_v, price * 0.002)
             threshold = settings.trading.atr_stop_multiplier * atr_v
             if (
                 self.position.side == "Buy" and price <= self.position.avg_price - threshold
