@@ -147,7 +147,7 @@ async def maybe_hedge(
     await engine._set_sl(hedge_qty, sl_px, price)
 
 
-async def handle_dca(engine, price: float) -> None:
+async def handle_dca(engine, price: float, reason: str | None = None) -> None:
     base = settings.trading.initial_risk_percent
     q = settings.trading.dca_risk_multiplier
     risk_pct = base * (q ** engine.risk.dca_levels)
@@ -177,7 +177,11 @@ async def handle_dca(engine, price: float) -> None:
     engine.risk.initial_qty = total_qty
     engine.risk.entry_value += qty * price
     engine.risk.last_dca_price = price
-    await notify_telegram(f"➕ DCA {engine.symbol}: +{qty} → avg {new_avg:.4f}")
+    msg = (
+        f"➕ DCA {engine.symbol}: +{qty} → avg {new_avg:.4f}\n"
+        f"📉 Reason: {reason or 'n/a'}"
+    )
+    await notify_telegram(msg)
 
     sl_px = engine._soft_sl_price(new_avg, engine.risk.position.side)
     await engine._set_sl(total_qty, sl_px, price)
