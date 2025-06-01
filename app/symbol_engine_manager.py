@@ -91,7 +91,7 @@ class SymbolEngineManager:
         if not guard.allow_new_position(risk_pct):
             print("🚫 Portfolio risk cap hit")
             return False
-        if engine.entry_order_id is not None or engine.risk.position.qty > 0:
+        if engine._opening or engine.entry_order_id is not None or engine.risk.position.qty > 0:
             return False
         await engine._open_position(direction, price)
         self.account.open_positions.append(NS(symbol=engine.symbol, risk_pct=risk_pct))
