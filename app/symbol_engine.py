@@ -15,6 +15,7 @@ from app.entry_score import compute_entry_score
 from app.exchange import BybitClient
 from app.market_features import MarketFeatures
 from app.notifier import notify_telegram
+from app.logbook import log_entry, log_exit
 from app.risk import RiskManager
 from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
 from app.signal_engine import SignalEngine
@@ -180,6 +181,8 @@ class SymbolEngine:
         self.risk.reset_trade()
         self.hedge_cycle_count = 0
         self.last_pnl_id: str | None = None
+        self.last_score: float | None = None
+        self.last_thr: float | None = None
 
         # stop flag when daily limit hit
         self._stopped = False
@@ -429,6 +432,8 @@ class SymbolEngine:
             self.score_history.append(score)
             sigma = statistics.stdev(self.score_history) if len(self.score_history) > 5 else self.latest_vol
             thr   = self.k * sigma
+            self.last_score = score
+            self.last_thr = thr
             direction  = (
                 "LONG"  if score < -thr else
                 "SHORT" if score > thr else None
@@ -563,7 +568,22 @@ class SymbolEngine:
             self.entry_order_id = order_id
             await self._wait_order_fill(order_id)
             self.entry_order_id = None
-        await notify_telegram(f"📥 Entry {self.symbol} {side} qty={qty}")
+        z = self.signal.features.zscore()
+        await log_entry(
+            symbol=self.symbol,
+            direction=side,
+            qty=qty,
+            reason="score < -thr" if direction == "LONG" else "score > thr",
+            features={
+                "z": z,
+                "obi": self.latest_obi or 0.0,
+                "vbd": self.latest_vbd,
+                "spread": self.latest_spread_z or 0.0,
+                "volatility": self.latest_vol,
+            },
+            passed_filters=getattr(self, "active_filters", []),
+            entry_type="score",
+        )
 
         RiskManager.active_positions.add(self.symbol)
         RiskManager.position_volumes[self.symbol] = volume
@@ -738,7 +758,14 @@ class SymbolEngine:
             f"{emoji} <b>{exit_signal} {self.symbol}</b>\n"
             f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
         )
-        await notify_telegram(msg)
+        await log_exit(
+            symbol=self.symbol,
+            side=self.risk.position.side,
+            exit_reason=exit_signal,
+            avg_price=self.risk.position.avg_price,
+            exit_price=mkt_price,
+            opened_at=self.risk.position.open_time,
+        )
         async with DB() as db:
             await db.log(side_close, qty_close, mkt_price, self.risk.position.avg_price, net_usdt)
         self.risk.position.reset()
