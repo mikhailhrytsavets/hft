@@ -1,4 +1,4 @@
-from app.core import indicators
+from legacy.core import indicators
 
 
 def test_atr_constant_range():
