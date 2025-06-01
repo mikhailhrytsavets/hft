@@ -811,9 +811,11 @@ class SymbolEngine:
     ) -> None:
         """Place a reduce-only stop order and store its ``orderId``.
 
-        ``current_price`` should be the latest traded price so the stop
-        trigger is guaranteed to be below (or above for shorts) the actual
-        market price at the moment of submission.
+        ``current_price`` should be the latest traded price so the stop trigger
+        is guaranteed to be below (or above for shorts) the actual market price
+        at the moment of submission.  The latest price is re-checked after any
+        existing stop is cancelled to avoid exchange rejections when the market
+        moves quickly.
         """
         step = self.precision.step(self.client.http, self.symbol)
         qty_r = snap_qty(qty, step)
@@ -835,6 +837,14 @@ class SymbolEngine:
                 )
             except Exception:
                 pass
+
+        # re-check price after cancel in case the market moved
+        if self.close_window:
+            current = self.close_window[-1]
+            if self.risk.position.side == "Buy" and sl_price >= current:
+                sl_price = current * 0.999
+            elif self.risk.position.side == "Sell" and sl_price <= current:
+                sl_price = current * 1.001
 
         link_id = self.client.gen_link_id("sl")
         resp = await self.client.create_reduce_only_sl(
