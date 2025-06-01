@@ -644,13 +644,13 @@ class SymbolEngine:
             return
         if signal == "DCA":
             print(f"[{self.symbol}] Exit signal DCA: {reason}")
-            await handle_dca(self, price)
+            await handle_dca(self, price, reason)
         elif signal == "TP2":
             print(f"[{self.symbol}] Exit signal TP2: {reason}")
-            await self._handle_tp2(price)
+            await self._handle_tp2(price, reason)
         elif signal == "TP1":
             print(f"[{self.symbol}] Exit signal TP1: {reason}")
-            await self._handle_tp1(price)
+            await self._handle_tp1(price, reason)
         else:  # TP, SOFT_SL, TRAIL or TIMEOUT
             if signal in ("SOFT_SL", "TRAIL") and settings.trading.enable_hedging:
                 await maybe_hedge(
@@ -665,7 +665,7 @@ class SymbolEngine:
             await self._close_position(signal, price, reason)
 
 
-    async def _handle_tp1(self, price: float) -> None:
+    async def _handle_tp1(self, price: float, reason: str | None = None) -> None:
         step = self.precision.step(self.client.http, self.symbol)
         close_qty = snap_qty(
             self.risk.position.qty * settings.trading.tp1_close_ratio, step
@@ -698,6 +698,7 @@ class SymbolEngine:
             sign  = "+" if net_usdt > 0 else ""
             msg = (
                 f"{emoji} <b>TP1 {self.symbol}</b>\n"
+                f"📉 Reason: {reason or 'n/a'}\n"
                 f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
             )
             await notify_telegram(msg)
@@ -712,7 +713,7 @@ class SymbolEngine:
             sl_px = self.risk.position.avg_price
         await self._set_sl(self.risk.position.qty, sl_px, price)
 
-    async def _handle_tp2(self, price: float) -> None:
+    async def _handle_tp2(self, price: float, reason: str | None = None) -> None:
         if settings.trading.tp2_close_ratio is None:
             return
         step = self.precision.step(self.client.http, self.symbol)
@@ -748,6 +749,7 @@ class SymbolEngine:
         sign = "+" if net_usdt > 0 else ""
         msg = (
             f"{emoji} <b>TP2 {self.symbol}</b>\n"
+            f"📉 Reason: {reason or 'n/a'}\n"
             f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
         )
         await notify_telegram(msg)
