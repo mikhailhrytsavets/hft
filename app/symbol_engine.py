@@ -21,7 +21,6 @@ from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
 from app.signal_engine import SignalEngine
 from app.utils import snap_qty
 from app.strategy_utils import (
-    entry_filters_fail,
     higher_tf_trend,
     handle_dca,
     maybe_hedge,
@@ -183,6 +182,8 @@ class SymbolEngine:
         self.last_pnl_id: str | None = None
         self.last_score: float | None = None
         self.last_thr: float | None = None
+        self.latest_features: dict[str, float] = {}
+        self.active_filters: list[str] = []
 
         # stop flag when daily limit hit
         self._stopped = False
@@ -358,6 +359,280 @@ class SymbolEngine:
             print(f"[{self.symbol}] ❌ safe_qty_calc: {type(e).__name__} → {e}")
             raise
 
+    # ------------------------------------------------------------------
+    # Entry filters
+    # ------------------------------------------------------------------
+    def filter_by_time(self) -> bool:
+        if settings.trading.enable_time_filter:
+            now = datetime.utcnow().hour
+            if not (
+                settings.trading.trade_start_hour <= now < settings.trading.trade_end_hour
+            ):
+                print(f"[{self.symbol}] 🚫 Time filter")
+                return True
+        self.active_filters.append("time")
+        return False
+
+    def filter_by_volatility(self) -> bool:
+        if self.vol_history:
+            avg_vol = statistics.mean(self.vol_history)
+            thr_vol = avg_vol * 3
+            if self.latest_vol > thr_vol:
+                print(f"[{self.symbol}] 🚫 Volatility filter")
+                return True
+        self.active_filters.append("volatility")
+        return False
+
+    def filter_by_spread(self, spread_z: float) -> bool:
+        if abs(spread_z) > self.SPREAD_Z_MAX:
+            print(f"[{self.symbol}] 🚫 Spread-Z filter")
+            return True
+        self.active_filters.append("spread_z")
+        return False
+
+    def filter_by_rsi(self, direction: str) -> bool:
+        if settings.trading.enable_rsi_filter:
+            prices = list(self.market.price_window)
+            if len(prices) >= settings.trading.rsi_period + 1:
+                import numpy as np
+
+                deltas = np.diff(prices)
+                ups = np.clip(deltas, 0, None)
+                downs = -np.clip(deltas, None, 0)
+                avg_gain = np.mean(ups[-settings.trading.rsi_period:])
+                avg_loss = np.mean(downs[-settings.trading.rsi_period:])
+                rsi = 100.0 if avg_loss == 0 else 100 - (100 / (1 + avg_gain / avg_loss))
+                if direction == "LONG" and rsi >= settings.trading.rsi_overbought:
+                    print(f"[{self.symbol}] 🚫 RSI filter")
+                    return True
+                if direction == "SHORT" and rsi <= settings.trading.rsi_oversold:
+                    print(f"[{self.symbol}] 🚫 RSI filter")
+                    return True
+        self.active_filters.append("rsi")
+        return False
+
+    def filter_by_adx(self) -> bool:
+        if settings.trading.use_adx_filter:
+            prices = list(self.market.price_window)
+            adx = compute_adx(prices, settings.trading.adx_period)
+            if adx is not None and adx >= settings.trading.adx_threshold:
+                print(f"[{self.symbol}] 🚫 ADX filter")
+                return True
+        self.active_filters.append("adx")
+        return False
+
+    def filter_by_multi_tf(self, direction: str, tf_trend: dict[str, str]) -> bool:
+        if settings.multi_tf.enable:
+            for tf in settings.multi_tf.intervals:
+                trend = tf_trend.get(tf)
+                if trend is None or trend == "MIXED":
+                    print(f"[{self.symbol}] 🚫 multi-TF filter")
+                    return True
+                if direction == "LONG" and trend != "UP":
+                    print(f"[{self.symbol}] 🚫 multi-TF filter")
+                    return True
+                if direction == "SHORT" and trend != "DOWN":
+                    print(f"[{self.symbol}] 🚫 multi-TF filter")
+                    return True
+        self.active_filters.append("multi_tf")
+        return False
+
+    def filter_by_htf(self, direction: str) -> bool:
+        if settings.trading.use_htf_filter:
+            htf = higher_tf_trend(self)
+            if htf == "UP" and direction == "SHORT":
+                print(f"[{self.symbol}] 🚫 HTF filter")
+                return True
+            if htf == "DOWN" and direction == "LONG":
+                print(f"[{self.symbol}] 🚫 HTF filter")
+                return True
+        self.active_filters.append("htf")
+        return False
+
+    def filter_by_trend_mode(self, direction: str, mode: str, trend_dir: str | None) -> bool:
+        if settings.trading.enable_trend_mode and mode == "trend":
+            if trend_dir and direction != trend_dir:
+                print(f"[{self.symbol}] 🚫 TrendMode filter")
+                return True
+        self.active_filters.append("trend_mode")
+        return False
+
+    # ------------------------------------------------------------------
+    # Run helpers
+    # ------------------------------------------------------------------
+    async def _update_features_and_score(
+        self, price: float, warmup_target: int, warmup_done: bool
+    ) -> tuple[bool, str | None, float | None, float | None, float | None, dict[str, str]]:
+        self.signal.update(price, volume=1.0)
+        z = self.signal.features.zscore()
+        spread_z = self.latest_spread_z or 0.0
+        vol = self.market.update_volatility(price)
+        self.latest_vol = vol
+        self.vol_history.append(vol)
+        candle = self._candle_agg.add_tick(price, time.time())
+        if candle:
+            high, low, close = candle
+            self.risk.price_window.append((high, low, close))
+            if not warmup_done:
+                print(
+                    f"[{self.symbol}] 🔄 Warming up indicators "
+                    f"{len(self.risk.price_window)}/{warmup_target}"
+                )
+                if len(self.risk.price_window) >= warmup_target:
+                    warmup_done = True
+                    print(f"[{self.symbol}] ✅ Indicators ready")
+        self.latest_features = {
+            "z": z,
+            "obi": self.latest_obi or 0.0,
+            "vbd": self.latest_vbd,
+            "spread": spread_z,
+            "volatility": vol,
+        }
+        if not warmup_done:
+            return warmup_done, None, None, None, None, {}
+
+        adx, plus_di, minus_di = self.risk._compute_adx_info(settings.trading.adx_period)
+        score = compute_entry_score(
+            z,
+            self.latest_obi or 0.0,
+            self.latest_vbd,
+            spread_z,
+            self.latest_tflow,
+            vol,
+            self.weights,
+        )
+        await self._update_multi_tf()
+        mt_score = 0.0
+        tf_trend: dict[str, str] = {}
+        if settings.multi_tf.enable:
+            for tf in settings.multi_tf.intervals:
+                candles = self._mt_candles.get(tf, [])
+                if len(candles) >= settings.multi_tf.trend_confirm_bars:
+                    up = all(float(c.get("close") or c.get("c")) > float(c.get("open") or c.get("o")) for c in candles)
+                    dn = all(float(c.get("close") or c.get("c")) < float(c.get("open") or c.get("o")) for c in candles)
+                    tf_trend[tf] = "UP" if up else "DOWN" if dn else "MIXED"
+                    wt = settings.multi_tf.weights.get(tf, 0.0)
+                    if up:
+                        mt_score += wt
+                    elif dn:
+                        mt_score -= wt
+                else:
+                    tf_trend[tf] = "MIXED"
+        score += mt_score
+        self.score_history.append(score)
+        sigma = statistics.stdev(self.score_history) if len(self.score_history) > 5 else self.latest_vol
+        thr = self.k * sigma
+        self.last_score = score
+        self.last_thr = thr
+        direction = "LONG" if score < -thr else "SHORT" if score > thr else None
+        print(f"[{self.symbol}] score={score:.2f} → {direction}")
+        return warmup_done, direction, adx, plus_di, minus_di, tf_trend
+
+    async def _check_entry_signal_bounce(
+        self, price: float, tf_trend: dict[str, str]
+    ) -> bool:
+        current_bar = self.ohlc.last_bar
+        if not current_bar or self.risk.position.qty != 0:
+            return False
+        sig = BounceEntry.check(
+            current_bar,
+            self.volume_window,
+            self.close_window,
+            settings.symbol_params.get(self.symbol, {}),
+        )
+        if not sig:
+            return False
+        self.active_filters = []
+        if self.filter_by_multi_tf(sig.name, tf_trend):
+            return False
+        direction = sig.name
+        qty = None
+        if self.manager:
+            opened = await self.manager._maybe_open_position(self, direction, price)
+            if opened:
+                qty = self.risk.position.qty
+        else:
+            qty = await self._open_position(direction, price)
+        if qty:
+            side = "Buy" if direction == "LONG" else "Sell"
+            await log_entry(
+                symbol=self.symbol,
+                direction=side,
+                qty=qty,
+                reason=direction,
+                features=self.latest_features,
+                passed_filters=self.active_filters,
+                entry_type="bounce",
+            )
+            return True
+        return False
+
+    async def _check_entry_signal_score(
+        self,
+        direction: str | None,
+        adx: float | None,
+        plus_di: float | None,
+        minus_di: float | None,
+        tf_trend: dict[str, str],
+        price: float,
+    ) -> bool:
+        if not direction or self.risk.position.qty != 0:
+            return False
+        mode = "range"
+        trend_dir = None
+        if settings.trading.enable_trend_mode and adx is not None:
+            if adx >= settings.trading.trend_adx_threshold:
+                mode = "trend"
+                if plus_di is not None and minus_di is not None:
+                    trend_dir = "LONG" if plus_di >= minus_di else "SHORT"
+                else:
+                    avg = statistics.mean(self.market.price_window) if self.market.price_window else price
+                    trend_dir = "LONG" if price >= avg else "SHORT"
+            print(f"[{self.symbol}] Mode={mode}, ADX={adx:.2f}, dir={trend_dir}")
+
+        self.active_filters = []
+        if self.filter_by_trend_mode(direction, mode, trend_dir):
+            return False
+        if self.filter_by_time():
+            return False
+        if self.filter_by_volatility():
+            return False
+        if self.filter_by_spread(self.latest_features.get("spread", 0.0)):
+            return False
+        if self.filter_by_rsi(direction):
+            return False
+        if self.filter_by_adx():
+            return False
+        if self.filter_by_multi_tf(direction, tf_trend):
+            return False
+        if self.filter_by_htf(direction):
+            return False
+
+        qty = None
+        if self.manager:
+            opened = await self.manager._maybe_open_position(self, direction, price)
+            if opened:
+                qty = self.risk.position.qty
+        else:
+            qty = await self._open_position(direction, price)
+        if qty:
+            side = "Buy" if direction == "LONG" else "Sell"
+            reason = "score < -thr" if direction == "LONG" else "score > thr"
+            await log_entry(
+                symbol=self.symbol,
+                direction=side,
+                qty=qty,
+                reason=reason,
+                features=self.latest_features,
+                passed_filters=self.active_filters,
+                entry_type="score",
+            )
+            return True
+        return False
+
+    async def _should_exit(self, price: float) -> None:
+        await self._manage_position(price)
+
     # ---------------------------------------------------------------------
     # Main loop
     # ---------------------------------------------------------------------
@@ -374,164 +649,37 @@ class SymbolEngine:
                 f"[{self.symbol}] 🔄 Warming up indicators "
                 f"{len(self.risk.price_window)}/{warmup_target}"
             )
+        try:
+            async for price in self.client.price_stream():
+                if self._stopped:
+                    print(f"[{self.symbol}] 🛑 Engine stopped due to risk limit")
+                    break
 
-        async for price in self.client.price_stream():
-            if self._stopped:
-                print(f"[{self.symbol}] 🛑 Engine stopped due to risk limit")
-                break
-            # ---------------- Feature update -----------------------------
-            self.signal.update(price, volume=1.0)
-            z        = self.signal.features.zscore()
-            spread_z = self.latest_spread_z or 0.0
-            vol      = self.market.update_volatility(price)
-            self.latest_vol = vol
-            self.vol_history.append(vol)
-            candle = self._candle_agg.add_tick(price, time.time())
-            if candle:
-                high, low, close = candle
-                self.risk.price_window.append((high, low, close))
-                if not warmup_done:
-                    print(
-                        f"[{self.symbol}] 🔄 Warming up indicators "
-                        f"{len(self.risk.price_window)}/{warmup_target}"
-                    )
-                    if len(self.risk.price_window) >= warmup_target:
-                        warmup_done = True
-                        print(f"[{self.symbol}] ✅ Indicators ready")
-            if not warmup_done:
-                continue
-
-            adx, plus_di, minus_di = self.risk._compute_adx_info(settings.trading.adx_period)
-            score    = compute_entry_score(
-                z,
-                self.latest_obi or 0.0,
-                self.latest_vbd,
-                spread_z,
-                self.latest_tflow,
-                vol,
-                self.weights,
-            )
-            await self._update_multi_tf()
-            mt_score = 0.0
-            tf_trend: dict[str, str] = {}
-            if settings.multi_tf.enable:
-                for tf in settings.multi_tf.intervals:
-                    candles = self._mt_candles.get(tf, [])
-                    if len(candles) >= settings.multi_tf.trend_confirm_bars:
-                        up = all(float(c.get("close") or c.get("c")) > float(c.get("open") or c.get("o")) for c in candles)
-                        dn = all(float(c.get("close") or c.get("c")) < float(c.get("open") or c.get("o")) for c in candles)
-                        tf_trend[tf] = "UP" if up else "DOWN" if dn else "MIXED"
-                        wt = settings.multi_tf.weights.get(tf, 0.0)
-                        if up:
-                            mt_score += wt
-                        elif dn:
-                            mt_score -= wt
-                    else:
-                        tf_trend[tf] = "MIXED"
-            score += mt_score
-            self.score_history.append(score)
-            sigma = statistics.stdev(self.score_history) if len(self.score_history) > 5 else self.latest_vol
-            thr   = self.k * sigma
-            self.last_score = score
-            self.last_thr = thr
-            direction  = (
-                "LONG"  if score < -thr else
-                "SHORT" if score > thr else None
-            )
-            print(f"[{self.symbol}] score={score:.2f} → {direction}")
-
-            current_bar = self.ohlc.last_bar
-            sig = None
-            if current_bar:
-                sig = BounceEntry.check(
-                    current_bar,
-                    self.volume_window,
-                    self.close_window,
-                    settings.symbol_params.get(self.symbol, {}),
+                warmup_done, direction, adx, plus_di, minus_di, tf_trend = await self._update_features_and_score(
+                    price, warmup_target, warmup_done
                 )
-
-            if sig and self.risk.position.qty == 0:
-                if settings.multi_tf.enable:
-                    ok = True
-                    for tf in settings.multi_tf.intervals:
-                        trend = tf_trend.get(tf)
-                        if trend is None or trend == "MIXED":
-                            ok = False
-                            break
-                        if sig is EntrySignal.LONG and trend != "UP":
-                            ok = False
-                            break
-                        if sig is EntrySignal.SHORT and trend != "DOWN":
-                            ok = False
-                            break
-                    if not ok:
-                        print(f"[{self.symbol}] 🚫 multi-TF filter (bounce)")
-                        sig = None
-                if sig:
-                    if self.manager:
-                        await self.manager._maybe_open_position(
-                            self, sig.value, price
-                        )
-                    else:
-                        await self._open_position(sig.value, price)
+                if not warmup_done:
                     continue
 
-            mode = "range"
-            trend_dir = None
-            if settings.trading.enable_trend_mode and adx is not None:
-                if adx >= settings.trading.trend_adx_threshold:
-                    mode = "trend"
-                    if plus_di is not None and minus_di is not None:
-                        trend_dir = "LONG" if plus_di >= minus_di else "SHORT"
-                    else:
-                        avg = statistics.mean(self.market.price_window) if self.market.price_window else price
-                        trend_dir = "LONG" if price >= avg else "SHORT"
-                print(f"[{self.symbol}] Mode={mode}, ADX={adx:.2f}, dir={trend_dir}")
-
-            # ---------------- Entry -------------------------------------
-            if direction and self.risk.position.qty == 0:
-                if settings.trading.enable_trend_mode and mode == "trend":
-                    if trend_dir and direction != trend_dir:
-                        print(f"[{self.symbol}] 🚫 TrendMode filter")
-                        continue
-                if entry_filters_fail(self, spread_z, direction):
+                opened = await self._check_entry_signal_bounce(price, tf_trend)
+                if opened:
                     continue
-                if settings.multi_tf.enable:
-                    ok = True
-                    for tf in settings.multi_tf.intervals:
-                        trend = tf_trend.get(tf)
-                        if trend is None or trend == "MIXED":
-                            ok = False
-                            break
-                        if direction == "LONG" and trend != "UP":
-                            ok = False
-                        if direction == "SHORT" and trend != "DOWN":
-                            ok = False
-                    if not ok:
-                        print(f"[{self.symbol}] 🚫 multi-TF filter")
-                        continue
-                if settings.trading.use_htf_filter:
-                    htf = higher_tf_trend(self)
-                    if htf == "UP" and direction == "SHORT":
-                        print(f"[{self.symbol}] 🚫 HTF filter")
-                        continue
-                    if htf == "DOWN" and direction == "LONG":
-                        print(f"[{self.symbol}] 🚫 HTF filter")
-                        continue
-                if self.manager:
-                    await self.manager._maybe_open_position(self, direction, price)
-                else:
-                    await self._open_position(direction, price)
-                continue  # wait next tick
 
-            # ---------------- Exit / DCA --------------------------------
-            await self._manage_position(price)
+                opened = await self._check_entry_signal_score(
+                    direction, adx, plus_di, minus_di, tf_trend, price
+                )
+                if opened:
+                    continue
+
+                await self._should_exit(price)
+        except Exception as exc:
+            print(f"[{self.symbol}] ⚠️ run loop error: {exc}")
 
     # ------------------------------------------------------------------
     # Entry helpers
     # ------------------------------------------------------------------
 
-    async def _open_position(self, direction: str, price: float) -> None:
+    async def _open_position(self, direction: str, price: float) -> float | None:
         side = "Buy" if direction == "LONG" else "Sell"
         try:
             if (
@@ -539,7 +687,7 @@ class SymbolEngine:
                 and len(RiskManager.active_positions) >= settings.risk.max_open_positions
             ):
                 print(f"[{self.symbol}] 🚫 Max open positions reached")
-                return
+                return None
             # current equity check -----------------------------------------
             info = await self.client.get_wallet_balance(accountType="UNIFIED")
             coins = info["result"]["list"][0]["coin"]
@@ -548,7 +696,7 @@ class SymbolEngine:
             allowed = await self.risk.check_equity(equity)
             if not allowed:
                 self._stopped = True
-                return
+                return None
 
             qty = await self.safe_qty_calc(price, settings.trading.initial_risk_percent)
             volume = qty * price
@@ -561,29 +709,13 @@ class SymbolEngine:
                 return
         except Exception as exc:
             print(f"[{self.symbol}] Qty calc failed: {exc}")
-            return
+            return None
         resp = await self.client.create_market_order(side, qty)
         order_id = resp.get("result", {}).get("orderId") if isinstance(resp, dict) else None
         if order_id:
             self.entry_order_id = order_id
             await self._wait_order_fill(order_id)
             self.entry_order_id = None
-        z = self.signal.features.zscore()
-        await log_entry(
-            symbol=self.symbol,
-            direction=side,
-            qty=qty,
-            reason="score < -thr" if direction == "LONG" else "score > thr",
-            features={
-                "z": z,
-                "obi": self.latest_obi or 0.0,
-                "vbd": self.latest_vbd,
-                "spread": self.latest_spread_z or 0.0,
-                "volatility": self.latest_vol,
-            },
-            passed_filters=getattr(self, "active_filters", []),
-            entry_type="score",
-        )
 
         RiskManager.active_positions.add(self.symbol)
         RiskManager.position_volumes[self.symbol] = volume
@@ -597,6 +729,7 @@ class SymbolEngine:
         # initial SL ------------------------------------------------------
         sl_price = self._soft_sl_price(price, side)
         await self._set_sl(qty, sl_price, price)
+        return qty
 
     # ------------------------------------------------------------------
     # Position management
