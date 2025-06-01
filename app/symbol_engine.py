@@ -52,25 +52,46 @@ class _PrecisionCache:
         return step
 
 
-async def _fetch_closed_pnl(
-    client: BybitClient, symbol: str, retries: int = 10
-) -> Optional[tuple[float, float]]:
-    """Poll Bybit for the most recent closed PnL record."""
+async def _fetch_closed_pnl(self, retries: int = 10) -> Optional[tuple[float, float]]:
+    """Return aggregated PnL for trades newer than ``self.last_pnl_id``."""
 
     await asyncio.sleep(3)  # allow exchange to register the trade
     for _ in range(retries):
         try:
-            resp = client.http.get_closed_pnl(category="linear", symbol=symbol, limit=1)
+            resp = self.client.http.get_closed_pnl(
+                category="linear", symbol=self.symbol, limit=10
+            )
             rows = resp.get("result", {}).get("list", [])
             if not rows:
                 await asyncio.sleep(1)
                 continue
-            row = rows[0]
-            net_pnl = float(row["closedPnl"])
-            pnl_pct = net_pnl / float(row["cumEntryValue"]) * 100.0
-            return net_pnl, pnl_pct
+
+            # rows are newest first
+            if self.last_pnl_id is None:
+                row = rows[0]
+                self.last_pnl_id = row.get("id")
+                net_pnl = float(row["closedPnl"])
+                pnl_pct = net_pnl / float(row["cumEntryValue"]) * 100.0
+                return net_pnl, pnl_pct
+
+            new_rows = []
+            for r in rows:
+                rid = r.get("id")
+                if rid == self.last_pnl_id:
+                    break
+                new_rows.append(r)
+
+            if not new_rows:
+                await asyncio.sleep(1)
+                continue
+
+            self.last_pnl_id = new_rows[0].get("id")
+            net = sum(float(r["closedPnl"]) for r in new_rows)
+            entry = sum(float(r["cumEntryValue"]) for r in new_rows)
+            pnl_pct = net / entry * 100.0 if entry else 0.0
+            return net, pnl_pct
         except Exception as exc:
-            print(f"[{symbol}] ⚠️ closed_pnl fetch error: {exc}")
+            print(f"[{self.symbol}] ⚠️ closed_pnl fetch error: {exc}")
             await asyncio.sleep(1)
     return None
 
@@ -158,6 +179,7 @@ class SymbolEngine:
         self._purge_stale_orders()
         self.risk.reset_trade()
         self.hedge_cycle_count = 0
+        self.last_pnl_id: str | None = None
 
         # stop flag when daily limit hit
         self._stopped = False
@@ -614,7 +636,7 @@ class SymbolEngine:
                 print(f"[{self.symbol}] TP1 close failed: {exc}")
                 return
             self.risk.position.qty -= close_qty
-            pnl = await _fetch_closed_pnl(self.client, self.symbol)
+            pnl = await _fetch_closed_pnl(self)
             if pnl:
                 self.risk.realized_pnl += pnl[0]
             await notify_telegram(f"💰 TP1 {self.symbol}: {close_qty} closed")
@@ -664,7 +686,7 @@ class SymbolEngine:
             print(f"[{self.symbol}] TP2 close failed: {exc}")
             return
         self.risk.position.qty -= close_qty
-        pnl = await _fetch_closed_pnl(self.client, self.symbol)
+        pnl = await _fetch_closed_pnl(self)
         if pnl:
             self.risk.realized_pnl += pnl[0]
         await notify_telegram(f"💰 TP2 {self.symbol}: {close_qty} closed")
@@ -702,7 +724,7 @@ class SymbolEngine:
             else:
                 print(f"[{self.symbol}] ⚠️ close_order failed: {exc}")
                 return
-        pnl = await _fetch_closed_pnl(self.client, self.symbol)
+        pnl = await _fetch_closed_pnl(self)
         if pnl:
             self.risk.realized_pnl += pnl[0]
         total_pct = (
