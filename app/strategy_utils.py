@@ -168,6 +168,11 @@ async def handle_dca(engine, price: float, reason: str | None = None) -> None:
         RiskManager.position_volumes.get(engine.symbol, 0.0) + qty * price
     )
 
+    delta_pct = (
+        (price - engine.risk.position.avg_price)
+        / engine.risk.position.avg_price
+        * 100
+    )
     total_qty = engine.risk.position.qty + qty
     new_avg = (
         engine.risk.position.avg_price * engine.risk.position.qty + price * qty
@@ -177,9 +182,11 @@ async def handle_dca(engine, price: float, reason: str | None = None) -> None:
     engine.risk.initial_qty = total_qty
     engine.risk.entry_value += qty * price
     engine.risk.last_dca_price = price
+    direction = "LONG" if engine.risk.position.side == "Buy" else "SHORT"
     msg = (
-        f"➕ DCA {engine.symbol}: +{qty} → avg {new_avg:.4f}\n"
-        f"📉 Reason: {reason or 'n/a'}"
+        f"➕ DCA {engine.symbol} {direction}: +{qty} → avg {new_avg:.4f}\n"
+        f"📉 Reason: {reason or 'n/a'}\n"
+        f"Δ%: {delta_pct:.2f}%"
     )
     await notify_telegram(msg)
 
