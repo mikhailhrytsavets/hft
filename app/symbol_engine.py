@@ -162,6 +162,7 @@ class SymbolEngine:
         self.latest_vbd: float = 0.0
         self.latest_tflow: float = 0.0
         self.latest_vol: float = 0.0
+        self.last_price: float | None = None
 
         # Active exchange order ids
         self.sl_order_id: Optional[str] = None
@@ -203,8 +204,10 @@ class SymbolEngine:
         self.risk.latest_vbd    = self.latest_vbd
         self.latest_tflow  = self.market.update_taker_flow(buys, sells)
         for t in data:
+            price = float(t["p"])
             ts = int((t.get("T") or t.get("ts") or t.get("t"))/1000)
-            self.ohlc.on_trade(float(t["p"]), float(t["v"]), ts)
+            self.last_price = price
+            self.ohlc.on_trade(price, float(t["v"]), ts)
 
     # ---------------------------------------------------------------------
     # Setup helpers
@@ -826,7 +829,7 @@ class SymbolEngine:
         step = self.precision.step(self.client.http, self.symbol)
         qty_r = snap_qty(qty, step)
 
-        current = current_price
+        current = self.last_price or current_price
         if current is None:
             current = self.close_window[-1] if self.close_window else None
         if current is not None:
@@ -845,8 +848,8 @@ class SymbolEngine:
                 pass
 
         # re-check price after cancel in case the market moved
-        if self.close_window:
-            current = self.close_window[-1]
+        current = self.last_price or (self.close_window[-1] if self.close_window else None)
+        if current is not None:
             if self.risk.position.side == "Buy" and sl_price >= current:
                 sl_price = current * 0.999
             elif self.risk.position.side == "Sell" and sl_price <= current:
