@@ -602,8 +602,9 @@ class SymbolEngine:
             self.entry_order_id = order_id
             await self._wait_order_fill(order_id)
             self.entry_order_id = None
+        direction_label = "LONG" if side == "Buy" else "SHORT"
         log_msg = (
-            f"📥 Entry {self.symbol} {side} qty={qty:.2f}\n"
+            f"📥 Entry {self.symbol} {direction_label} qty={qty:.2f} @ {price:.4f}\n"
             f"📊 Reason: {reason or 'n/a'}\n"
             f"✅ Filters passed: {filters or 'none'}"
         )
@@ -697,8 +698,9 @@ class SymbolEngine:
             net_usdt = self.risk.realized_pnl
             emoji = "🟢" if net_usdt > 0 else "🔴"
             sign  = "+" if net_usdt > 0 else ""
+            direction_label = "LONG" if self.risk.position.side == "Buy" else "SHORT"
             msg = (
-                f"{emoji} <b>TP1 {self.symbol}</b>\n"
+                f"{emoji} <b>TP1 {self.symbol} {direction_label}</b>\n"
                 f"📉 Reason: {reason or 'n/a'}\n"
                 f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
             )
@@ -745,8 +747,9 @@ class SymbolEngine:
         net_usdt = self.risk.realized_pnl
         emoji = "🟢" if net_usdt > 0 else "🔴"
         sign = "+" if net_usdt > 0 else ""
+        direction_label = "LONG" if self.risk.position.side == "Buy" else "SHORT"
         msg = (
-            f"{emoji} <b>TP2 {self.symbol}</b>\n"
+            f"{emoji} <b>TP2 {self.symbol} {direction_label}</b>\n"
             f"📉 Reason: {reason or 'n/a'}\n"
             f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
         )
@@ -785,8 +788,9 @@ class SymbolEngine:
         sign  = "+" if net_usdt > 0 else ""
         duration = datetime.utcnow() - self.risk.position.open_time
         dur_str = str(duration).split(".")[0]
+        direction_label = "LONG" if self.risk.position.side == "Buy" else "SHORT"
         msg = (
-            f"{emoji} <b>{exit_signal} {self.symbol}</b>\n"
+            f"{emoji} <b>{exit_signal} {self.symbol} {direction_label}</b>\n"
             f"📉 Reason: {reason or 'n/a'}\n"
             f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
             f"🕑 Duration: {dur_str}"

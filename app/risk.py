@@ -392,7 +392,7 @@ class RiskManager:
             self.dca_levels += 1
             self.last_dca_price = price
             self.last_dca_time = datetime.utcnow()
-            reason = f"DCA level {self.dca_levels+1} triggered"
+            reason = f"DCA level {self.dca_levels+1} triggered at change {change:.2f}%"
             print(f"[{self.symbol}] {reason}")
             return "DCA", reason
 
