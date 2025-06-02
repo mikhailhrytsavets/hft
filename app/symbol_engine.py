@@ -693,7 +693,9 @@ class SymbolEngine:
             pnl = await _fetch_closed_pnl(self)
             if pnl:
                 self.risk.realized_pnl += pnl[0]
-            await notify_telegram(f"💰 TP1 {self.symbol}: {close_qty} closed")
+            await notify_telegram(
+                f"💰 TP1 {self.symbol}: {close_qty} closed @ {price:.4f}"
+            )
             total_pct = (
                 self.risk.realized_pnl / self.risk.entry_value * 100
                 if self.risk.entry_value else 0.0
@@ -705,6 +707,7 @@ class SymbolEngine:
             msg = (
                 f"{emoji} <b>TP1 {self.symbol} {direction_label}</b>\n"
                 f"📉 Reason: {reason or 'n/a'}\n"
+                f"📈 Price: {price:.4f}\n"
                 f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
             )
             await notify_telegram(msg)
@@ -742,7 +745,9 @@ class SymbolEngine:
         pnl = await _fetch_closed_pnl(self)
         if pnl:
             self.risk.realized_pnl += pnl[0]
-        await notify_telegram(f"💰 TP2 {self.symbol}: {close_qty} closed")
+        await notify_telegram(
+            f"💰 TP2 {self.symbol}: {close_qty} closed @ {price:.4f}"
+        )
         total_pct = (
             self.risk.realized_pnl / self.risk.entry_value * 100
             if self.risk.entry_value else 0.0
@@ -754,6 +759,7 @@ class SymbolEngine:
         msg = (
             f"{emoji} <b>TP2 {self.symbol} {direction_label}</b>\n"
             f"📉 Reason: {reason or 'n/a'}\n"
+            f"📈 Price: {price:.4f}\n"
             f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
         )
         await notify_telegram(msg)
@@ -795,6 +801,7 @@ class SymbolEngine:
         msg = (
             f"{emoji} <b>{exit_signal} {self.symbol} {direction_label}</b>\n"
             f"📉 Reason: {reason or 'n/a'}\n"
+            f"📈 Price: {mkt_price:.4f}\n"
             f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
             f"🕑 Duration: {dur_str}"
         )
