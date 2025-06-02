@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Tuple
 
-from app.config import settings
+from app.config import settings, SymbolParams
 
 if TYPE_CHECKING:
     from .risk import RiskManager
@@ -26,7 +26,7 @@ async def check_exit(risk: 'RiskManager', price: float) -> Tuple[str | None, str
             return "HARD_SL", reason
 
     # ATR-based stop
-    period = settings.symbol_params.get(risk.symbol, settings.SymbolParams()).atr_period
+    period = settings.symbol_params.get(risk.symbol, SymbolParams()).atr_period
     if stg.use_atr_stop and len(risk.price_window) >= period + 1:
         atr_v = risk._compute_atr(period)
         if atr_v:
