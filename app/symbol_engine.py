@@ -707,7 +707,7 @@ class SymbolEngine:
             msg = (
                 f"{emoji} <b>TP1 {self.symbol} {direction_label}</b>\n"
                 f"📉 Reason: {reason or 'n/a'}\n"
-                f"📈 Price: {price:.4f}\n"
+                f"📈 Price: {price:.4f} (entry {self.risk.position.avg_price:.4f})\n"
                 f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
             )
             await notify_telegram(msg)
@@ -759,7 +759,7 @@ class SymbolEngine:
         msg = (
             f"{emoji} <b>TP2 {self.symbol} {direction_label}</b>\n"
             f"📉 Reason: {reason or 'n/a'}\n"
-            f"📈 Price: {price:.4f}\n"
+            f"📈 Price: {price:.4f} (entry {self.risk.position.avg_price:.4f})\n"
             f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
         )
         await notify_telegram(msg)
@@ -801,7 +801,7 @@ class SymbolEngine:
         msg = (
             f"{emoji} <b>{exit_signal} {self.symbol} {direction_label}</b>\n"
             f"📉 Reason: {reason or 'n/a'}\n"
-            f"📈 Price: {mkt_price:.4f}\n"
+            f"📈 Price: {mkt_price:.4f} (entry {self.risk.position.avg_price:.4f})\n"
             f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
             f"🕑 Duration: {dur_str}"
         )
