@@ -694,18 +694,17 @@ class SymbolEngine:
             if pnl:
                 self.risk.realized_pnl += pnl[0]
             await notify_telegram(f"💰 TP1 {self.symbol}: {close_qty} closed")
-            total_pct = (
-                self.risk.realized_pnl / self.risk.entry_value * 100
-                if self.risk.entry_value else 0.0
-            )
-            net_usdt = self.risk.realized_pnl
-            emoji = "🟢" if net_usdt > 0 else "🔴"
-            sign  = "+" if net_usdt > 0 else ""
-            direction_label = "LONG" if self.risk.position.side == "Buy" else "SHORT"
+            side   = self.risk.position.side
+            avg_px = self.risk.position.avg_price
+            pnl_usdt = price - avg_px if side == "Buy" else avg_px - price
+            pnl_pct  = 100 * pnl_usdt / avg_px if avg_px else 0.0
+            emoji = "🟢" if pnl_usdt > 0 else "🔴"
+            sign  = "+" if pnl_usdt > 0 else ""
+            direction_label = "LONG" if side == "Buy" else "SHORT"
             msg = (
                 f"{emoji} <b>TP1 {self.symbol} {direction_label}</b>\n"
                 f"📉 Reason: {reason or 'n/a'}\n"
-                f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
+                f"💰 PnL: <b>{sign}{pnl_usdt:.2f} USDT</b> ({sign}{pnl_pct:.2f}%)\n"
             )
             await notify_telegram(msg)
         # set initial trailing stop after TP1
@@ -743,18 +742,17 @@ class SymbolEngine:
         if pnl:
             self.risk.realized_pnl += pnl[0]
         await notify_telegram(f"💰 TP2 {self.symbol}: {close_qty} closed")
-        total_pct = (
-            self.risk.realized_pnl / self.risk.entry_value * 100
-            if self.risk.entry_value else 0.0
-        )
-        net_usdt = self.risk.realized_pnl
-        emoji = "🟢" if net_usdt > 0 else "🔴"
-        sign = "+" if net_usdt > 0 else ""
-        direction_label = "LONG" if self.risk.position.side == "Buy" else "SHORT"
+        side   = self.risk.position.side
+        avg_px = self.risk.position.avg_price
+        pnl_usdt = price - avg_px if side == "Buy" else avg_px - price
+        pnl_pct  = 100 * pnl_usdt / avg_px if avg_px else 0.0
+        emoji = "🟢" if pnl_usdt > 0 else "🔴"
+        sign = "+" if pnl_usdt > 0 else ""
+        direction_label = "LONG" if side == "Buy" else "SHORT"
         msg = (
             f"{emoji} <b>TP2 {self.symbol} {direction_label}</b>\n"
             f"📉 Reason: {reason or 'n/a'}\n"
-            f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
+            f"💰 PnL: <b>{sign}{pnl_usdt:.2f} USDT</b> ({sign}{pnl_pct:.2f}%)\n"
         )
         await notify_telegram(msg)
 
@@ -782,20 +780,19 @@ class SymbolEngine:
         pnl = await _fetch_closed_pnl(self)
         if pnl:
             self.risk.realized_pnl += pnl[0]
-        total_pct = (
-            self.risk.realized_pnl / self.risk.entry_value * 100
-            if self.risk.entry_value else 0.0
-        )
-        net_usdt = self.risk.realized_pnl
-        emoji = "🟢" if net_usdt > 0 else "🔴"
-        sign  = "+" if net_usdt > 0 else ""
+        side   = self.risk.position.side
+        avg_px = self.risk.position.avg_price
+        pnl_usdt = mkt_price - avg_px if side == "Buy" else avg_px - mkt_price
+        pnl_pct  = 100 * pnl_usdt / avg_px if avg_px else 0.0
+        emoji = "🟢" if pnl_usdt > 0 else "🔴"
+        sign  = "+" if pnl_usdt > 0 else ""
         duration = datetime.utcnow() - self.risk.position.open_time
         dur_str = str(duration).split(".")[0]
-        direction_label = "LONG" if self.risk.position.side == "Buy" else "SHORT"
+        direction_label = "LONG" if side == "Buy" else "SHORT"
         msg = (
             f"{emoji} <b>{exit_signal} {self.symbol} {direction_label}</b>\n"
             f"📉 Reason: {reason or 'n/a'}\n"
-            f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
+            f"💰 PnL: <b>{sign}{pnl_usdt:.2f} USDT</b> ({sign}{pnl_pct:.2f}%)\n"
             f"🕑 Duration: {dur_str}"
         )
         pct = abs((mkt_price - self.risk.position.avg_price) / self.risk.position.avg_price * 100)
@@ -803,6 +800,7 @@ class SymbolEngine:
         print(f"[{self.symbol}] {exit_signal} close: {reason}")
         await notify_telegram(msg)
         async with DB() as db:
+            net_usdt = self.risk.realized_pnl
             await db.log(side_close, qty_close, mkt_price, self.risk.position.avg_price, net_usdt)
         self.risk.position.reset()
         self.risk.reset_trade()
