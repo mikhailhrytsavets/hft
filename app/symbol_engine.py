@@ -68,11 +68,9 @@ async def _fetch_closed_pnl(self, retries: int = 10) -> Optional[tuple[float, fl
 
             # rows are newest first
             if self.last_pnl_id is None:
-                row = rows[0]
-                self.last_pnl_id = row.get("id")
-                net_pnl = float(row["closedPnl"])
-                pnl_pct = net_pnl / float(row["cumEntryValue"]) * 100.0
-                return net_pnl, pnl_pct
+                self.last_pnl_id = rows[0].get("id")
+                await asyncio.sleep(1)
+                continue
 
             new_rows = []
             for r in rows:
