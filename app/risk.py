@@ -313,7 +313,7 @@ class RiskManager:
 
         # Fallback TP when partial TPs are disabled
         if settings.trading.tp1_percent is None and settings.trading.tp2_percent is None:
-            tp_pct = settings.trading.take_profit_percent
+            tp_pct = abs(settings.trading.take_profit_percent)
             if (
                 self.position.side == "Buy" and change >= tp_pct
             ) or (
@@ -325,10 +325,10 @@ class RiskManager:
 
         # TP1
         if not self.tp1_done:
-            if (
-                self.position.side == "Buy" and change >= settings.trading.tp1_percent
-            ) or (
-                self.position.side == "Sell" and change <= -settings.trading.tp1_percent
+            tp1_pct = abs(settings.trading.tp1_percent) if settings.trading.tp1_percent is not None else None
+            if tp1_pct is not None and (
+                (self.position.side == "Buy" and change >= tp1_pct)
+                or (self.position.side == "Sell" and change <= -tp1_pct)
             ):
                 self.tp1_done = True
                 self.best_price = price
@@ -345,10 +345,11 @@ class RiskManager:
                 return "TP1", reason
         if self.tp1_done and not self.tp2_done:
             if settings.trading.tp2_percent is not None:
+                tp2_pct = abs(settings.trading.tp2_percent)
                 if (
-                    self.position.side == "Buy" and change >= settings.trading.tp2_percent
+                    self.position.side == "Buy" and change >= tp2_pct
                 ) or (
-                    self.position.side == "Sell" and change <= -settings.trading.tp2_percent
+                    self.position.side == "Sell" and change <= -tp2_pct
                 ):
                     self.tp2_done = True
                     self.best_price = price
@@ -378,10 +379,11 @@ class RiskManager:
                     return "TRAIL", reason
 
         # TP
+        tp_pct_final = abs(settings.trading.take_profit_percent)
         if (
-            self.position.side == "Buy" and change >= settings.trading.take_profit_percent
+            self.position.side == "Buy" and change >= tp_pct_final
         ) or (
-            self.position.side == "Sell" and change <= -settings.trading.take_profit_percent
+            self.position.side == "Sell" and change <= -tp_pct_final
         ):
             reason = f"TP hit at change {change:.2f}%"
             print(f"[{self.symbol}] {reason}")
