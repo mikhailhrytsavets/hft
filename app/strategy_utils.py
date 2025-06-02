@@ -7,7 +7,7 @@ import statistics
 from datetime import datetime
 
 from app.config import settings
-from app.utils import snap_qty
+from app.utils import snap_qty, format_price_change
 from app.risk import RiskManager
 from app.notifier import notify_telegram
 from legacy.core.indicators import compute_adx
@@ -169,6 +169,7 @@ async def handle_dca(engine, price: float, reason: str | None = None) -> None:
     )
 
     total_qty = engine.risk.position.qty + qty
+    old_avg = engine.risk.position.avg_price
     new_avg = (
         engine.risk.position.avg_price * engine.risk.position.qty + price * qty
     ) / total_qty
@@ -177,9 +178,11 @@ async def handle_dca(engine, price: float, reason: str | None = None) -> None:
     engine.risk.initial_qty = total_qty
     engine.risk.entry_value += qty * price
     engine.risk.last_dca_price = price
+    change_info = format_price_change(price, old_avg)
     msg = (
         f"➕ DCA {engine.symbol}: +{qty} → avg {new_avg:.4f}\n"
-        f"📉 Reason: {reason or 'n/a'}"
+        f"📉 Reason: {reason or 'n/a'}\n"
+        f"📈 {change_info}"
     )
     await notify_telegram(msg)
 
