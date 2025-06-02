@@ -603,7 +603,7 @@ class SymbolEngine:
             await self._wait_order_fill(order_id)
             self.entry_order_id = None
         log_msg = (
-            f"📥 Entry {self.symbol} {side} qty={qty:.2f}\n"
+            f"📥 Entry {self.symbol} {direction.capitalize()} qty={qty:.2f}\n"
             f"📊 Reason: {reason or 'n/a'}\n"
             f"✅ Filters passed: {filters or 'none'}"
         )
