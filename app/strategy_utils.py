@@ -186,6 +186,7 @@ async def handle_dca(engine, price: float, reason: str | None = None) -> None:
     msg = (
         f"➕ DCA {engine.symbol} {direction}: +{qty} → avg {new_avg:.4f}\n"
         f"📉 Reason: {reason or 'n/a'}\n"
+        f"📈 Price: {price:.4f}\n"
         f"Δ%: {delta_pct:.2f}%"
     )
     await notify_telegram(msg)
