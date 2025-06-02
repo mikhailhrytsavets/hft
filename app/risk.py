@@ -407,9 +407,13 @@ class RiskManager:
                     return "SOFT_SL", reason
 
         # Soft SL — по убытку
-        if (self.position.side == "Buy" and change <= settings.trading.soft_sl_percent) or \
-           (self.position.side == "Sell" and change >= -settings.trading.soft_sl_percent):
-            reason = f"SOFT_SL: loss {change:.2f}%"
+        sl_pct = abs(settings.trading.soft_sl_percent)
+        if (
+            self.position.side == "Buy" and change <= -sl_pct
+        ) or (
+            self.position.side == "Sell" and change >= sl_pct
+        ):
+            reason = f"SOFT_SL: loss {abs(change):.2f}%"
             print(f"[{self.symbol}] {reason}")
             return "SOFT_SL", reason
         return None, None
