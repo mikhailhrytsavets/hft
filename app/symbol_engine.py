@@ -384,10 +384,11 @@ class SymbolEngine:
             features = (
                 f"z={z:.2f}, obi={self.latest_obi or 0.0:.2f}, "
                 f"vbd={self.latest_vbd:.2f}, spread={spread_z:.2f}, "
-                f"volatility={vol:.2f}"
+                f"volatility={vol:.5f}"
             )
             self.latest_vol = vol
             self.vol_history.append(vol)
+            print(f"[{self.symbol}] vol={self.latest_vol:.5f}")
             candle = self._candle_agg.add_tick(price, time.time())
             if candle:
                 high, low, close = candle
@@ -703,7 +704,7 @@ class SymbolEngine:
             )
             await notify_telegram(msg)
         # set initial trailing stop after TP1
-        dist = settings.trading.trailing_distance_percent / 100
+        dist = getattr(settings.trading, "trailing_distance_percent", 0.2) / 100
         if self.risk.position.side == "Buy":
             sl_px = price * (1 - dist)
         else:
@@ -790,6 +791,8 @@ class SymbolEngine:
             f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
             f"🕑 Duration: {dur_str}"
         )
+        pct = abs((mkt_price - self.risk.position.avg_price) / self.risk.position.avg_price * 100)
+        msg += f"\nΔ%: {pct:.2f}%"
         print(f"[{self.symbol}] {exit_signal} close: {reason}")
         await notify_telegram(msg)
         async with DB() as db:
