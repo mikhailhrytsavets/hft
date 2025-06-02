@@ -715,8 +715,10 @@ class SymbolEngine:
         dist = getattr(settings.trading, "trailing_distance_percent", 0.2) / 100
         if self.risk.position.side == "Buy":
             sl_px = price * (1 - dist)
+            sl_px = max(sl_px, self.risk.position.avg_price)
         else:
             sl_px = price * (1 + dist)
+            sl_px = min(sl_px, self.risk.position.avg_price)
         await self._set_sl(self.risk.position.qty, sl_px, price)
 
     async def _handle_tp2(self, price: float, reason: str | None = None) -> None:
