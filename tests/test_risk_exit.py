@@ -17,6 +17,7 @@ trading = types.SimpleNamespace(
     tp2_percent=None,
     take_profit_percent=1.0,
     trailing_distance_percent=0.2,
+    trailing_step_percent=0.05,
 )
 settings_stub = types.SimpleNamespace(trading=trading, symbol_params={})
 sys.modules['app.config'] = types.SimpleNamespace(settings=settings_stub, SymbolParams=types.SimpleNamespace)

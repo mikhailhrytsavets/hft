@@ -14,7 +14,7 @@ from app.database import DB
 from app.entry_score import compute_entry_score
 from app.exchange import BybitClient
 from app.market_features import MarketFeatures
-from app.notifier import notify_telegram
+from app.notifier import notify_telegram, notify_telegram_bg
 from app.risk import RiskManager
 from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
 from app.signal_engine import SignalEngine
@@ -612,7 +612,7 @@ class SymbolEngine:
         if features:
             log_msg += f"\n📈 Features: {features}"
         print(f"[{self.symbol}] {log_msg}")
-        await notify_telegram(log_msg)
+        notify_telegram_bg(log_msg)
 
         RiskManager.active_positions.add(self.symbol)
         RiskManager.position_volumes[self.symbol] = volume
@@ -691,7 +691,7 @@ class SymbolEngine:
             pnl = await _fetch_closed_pnl(self)
             if pnl:
                 self.risk.realized_pnl += pnl[0]
-            await notify_telegram(
+            notify_telegram_bg(
                 f"💰 TP1 {self.symbol}: {close_qty} closed @ {price:.4f}"
             )
             total_pct = (
@@ -708,7 +708,7 @@ class SymbolEngine:
                 f"📈 Price: {price:.4f} (entry {self.risk.position.avg_price:.4f})\n"
                 f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
             )
-            await notify_telegram(msg)
+            notify_telegram_bg(msg)
         # set initial trailing stop after TP1
         dist = getattr(settings.trading, "trailing_distance_percent", 0.2) / 100
         if self.risk.position.side == "Buy":
@@ -745,7 +745,7 @@ class SymbolEngine:
         pnl = await _fetch_closed_pnl(self)
         if pnl:
             self.risk.realized_pnl += pnl[0]
-        await notify_telegram(
+        notify_telegram_bg(
             f"💰 TP2 {self.symbol}: {close_qty} closed @ {price:.4f}"
         )
         total_pct = (
@@ -762,7 +762,7 @@ class SymbolEngine:
             f"📈 Price: {price:.4f} (entry {self.risk.position.avg_price:.4f})\n"
             f"💰 PnL: <b>{sign}{net_usdt:.2f} USDT</b> ({sign}{total_pct:.2f}%)\n"
         )
-        await notify_telegram(msg)
+        notify_telegram_bg(msg)
 
     async def _close_position(self, exit_signal: str, mkt_price: float, reason: str | None = None) -> None:
         side_close = "Sell" if self.risk.position.side == "Buy" else "Buy"
@@ -808,7 +808,7 @@ class SymbolEngine:
         pct = abs((mkt_price - self.risk.position.avg_price) / self.risk.position.avg_price * 100)
         msg += f"\nΔ%: {pct:.2f}%"
         print(f"[{self.symbol}] {exit_signal} close: {reason}")
-        await notify_telegram(msg)
+        notify_telegram_bg(msg)
         async with DB() as db:
             await db.log(side_close, qty_close, mkt_price, self.risk.position.avg_price, net_usdt)
         self.risk.position.reset()
@@ -916,15 +916,19 @@ class SymbolEngine:
 
     async def _wait_order_fill(self, order_id: str, timeout: float = 10.0, poll: float = 0.5) -> None:
         """Wait until ``order_id`` is no longer present in open orders."""
-        end = time.time() + timeout
+        start = time.time()
+        end = start + timeout
+        print(f"[{self.symbol}] ⏳ waiting fill for {order_id}")
         while time.time() < end:
             try:
                 resp = await self.client.get_open_orders(category="linear", symbol=self.symbol)
                 orders = resp.get("result", {}).get("list", [])
                 if not any(o.get("orderId") == order_id for o in orders):
+                    dur = time.time() - start
+                    print(f"[{self.symbol}] ✅ order {order_id} filled in {dur:.1f}s")
                     return
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"[{self.symbol}] ⚠️ open_orders check failed: {exc}")
             await asyncio.sleep(poll)
         print(f"[{self.symbol}] ⚠️ order {order_id} not filled within {timeout}s")
 

@@ -51,3 +51,8 @@ Runtime options are read from `settings.toml`.  The parameter
 `candle_interval_sec` controls how long each aggregated candle lasts when the
 engine warms up.  Decreasing this value shortens the warm‑up period without
 changing any code.
+
+Trailing stops are configured via `trailing_distance_percent` and
+`trailing_step_percent`.  The distance sets how far from the current best price
+the stop follows, while the step controls how much the price must move before
+the stop is adjusted.

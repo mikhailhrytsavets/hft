@@ -76,6 +76,7 @@ class TradingSettings(BaseModel):
     tp2_percent: float | None = None
     tp2_close_ratio: float | None = 0.3
     trailing_distance_percent: float = 0.2
+    trailing_step_percent: float = 0.05
     # ---- hybrid strategy additions ----
     strategy_mode: str = "basic"
     enable_mm: bool = False
