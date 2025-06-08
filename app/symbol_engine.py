@@ -14,7 +14,7 @@ from app.database import DB
 from app.entry_score import compute_entry_score
 from app.exchange import BybitClient
 from app.market_features import MarketFeatures
-from app.notifier import notify_telegram, notify_telegram_bg
+from app.notifier import notify_telegram, notify_telegram_bg  # noqa: F401
 from app.risk import RiskManager
 from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
 from app.signal_engine import SignalEngine
@@ -871,6 +871,13 @@ class SymbolEngine:
 
         self.current_sl_price = sl_price
         self.sl_order_id = order_id
+
+    async def update_soft_sl(self, current_price: float) -> None:
+        """Recalculate soft stop based on ``avg_price`` after DCA."""
+        sl_px = self._soft_sl_price(
+            self.risk.position.avg_price, self.risk.position.side or "Buy"
+        )
+        await self._set_sl(self.risk.position.qty, sl_px, current_price)
 
     async def _set_tp_limit(self, qty: float, price: float) -> None:
         """Place a reduce-only TP limit order and store ``orderId``."""

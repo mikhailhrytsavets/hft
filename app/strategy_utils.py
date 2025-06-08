@@ -191,6 +191,5 @@ async def handle_dca(engine, price: float, reason: str | None = None) -> None:
     )
     await notify_telegram(msg)
 
-    sl_px = engine._soft_sl_price(new_avg, engine.risk.position.side)
-    await engine._set_sl(total_qty, sl_px, price)
+    await engine.update_soft_sl(price)
 
