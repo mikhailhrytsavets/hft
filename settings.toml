@@ -93,6 +93,7 @@ enable_daily_trades_guard   = true
 [telegram]
 bot_token = "7994411518:AAHpNIzjjN3TOl4TvYbEF7B2_Bxod3IxDTE"
 chat_id   = "-1002593601621"
+min_interval = 1.0
 
 #########################  Entry-score parameters  #############################
 [entry_score]

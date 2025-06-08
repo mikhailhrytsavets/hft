@@ -106,6 +106,7 @@ class RiskSettings(BaseModel):
 class TelegramSettings(BaseModel):
     bot_token: str
     chat_id: str
+    min_interval: float = 1.0
 
 class EntryScoreSettings(BaseModel):
     weights: dict
