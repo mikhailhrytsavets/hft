@@ -68,13 +68,14 @@ async def _fetch_closed_pnl(self, retries: int = 10) -> Optional[tuple[float, fl
 
             # rows are newest first
             if self.last_pnl_id is None:
-                self.last_pnl_id = rows[0].get("id")
+                first_id = rows[0].get("execId") or rows[0].get("id")
+                self.last_pnl_id = first_id
                 await asyncio.sleep(1)
                 continue
 
             new_rows = []
             for r in rows:
-                rid = r.get("id")
+                rid = r.get("execId") or r.get("id")
                 if rid == self.last_pnl_id:
                     break
                 new_rows.append(r)
@@ -83,7 +84,7 @@ async def _fetch_closed_pnl(self, retries: int = 10) -> Optional[tuple[float, fl
                 await asyncio.sleep(1)
                 continue
 
-            self.last_pnl_id = new_rows[0].get("id")
+            self.last_pnl_id = new_rows[0].get("execId") or new_rows[0].get("id")
             net = sum(float(r["closedPnl"]) for r in new_rows)
             entry = sum(float(r["cumEntryValue"]) for r in new_rows)
             pnl_pct = net / entry * 100.0 if entry else 0.0
