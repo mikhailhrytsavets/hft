@@ -101,23 +101,28 @@ async def check_exit(risk: 'RiskManager', price: float) -> Tuple[str | None, str
     # Trailing stop
     if risk.tp1_done and (stg.tp2_percent is None or risk.tp2_done):
         offset = stg.trailing_distance_percent / 100
+        step   = getattr(stg, "trailing_step_percent", 0.05) / 100
         if risk.position.side == "Buy":
             risk.best_price = max(risk.best_price or price, price)
             new_trail = risk.best_price * (1 - offset)
-            if risk.trail_price is None or new_trail > risk.trail_price:
-                risk.trail_price = new_trail
-            if risk.trail_price < risk.position.avg_price:
-                risk.trail_price = risk.position.avg_price
+            need_upd = (
+                risk.trail_price is None or
+                new_trail - risk.trail_price >= risk.best_price * step
+            )
+            if need_upd:
+                risk.trail_price = max(new_trail, risk.position.avg_price)
             if price <= risk.trail_price:
                 reason = f"TRAIL stop hit at {price:.4f}"
                 return "TRAIL", reason
         else:
             risk.best_price = min(risk.best_price or price, price)
             new_trail = risk.best_price * (1 + offset)
-            if risk.trail_price is None or new_trail < risk.trail_price:
-                risk.trail_price = new_trail
-            if risk.trail_price > risk.position.avg_price:
-                risk.trail_price = risk.position.avg_price
+            need_upd = (
+                risk.trail_price is None or
+                risk.trail_price - new_trail >= abs(risk.best_price * step)
+            )
+            if need_upd:
+                risk.trail_price = min(new_trail, risk.position.avg_price)
             if price >= risk.trail_price:
                 reason = f"TRAIL stop hit at {price:.4f}"
                 return "TRAIL", reason

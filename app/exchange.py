@@ -205,6 +205,7 @@ class BybitClient:
             orderType="Market",
             qty=qty,
             triggerPrice=trigger_price,
+            triggerBy="MarkPrice",
             triggerDirection=trigger_direction,
             reduceOnly=True,
             positionIdx=position_idx,

@@ -42,6 +42,7 @@ class RiskManager:
         self.tp2_done = False
         self.trail_price = None
         self.best_price = None
+        self.last_trail_update = None
         self.initial_qty = 0.0
         self.realized_pnl = 0.0
         self.entry_value = 0.0
@@ -86,6 +87,7 @@ class RiskManager:
         self.tp2_done = False
         self.trail_price = None
         self.best_price = None
+        self.last_trail_update = None
         self.dca_levels = 0
         self.last_dca_price = None
         self.last_dca_time = None

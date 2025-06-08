@@ -49,3 +49,7 @@ async def notify_telegram(msg: str, max_retries: int = 3) -> bool:
             await asyncio.sleep(1)  # Пауза перед следующей попыткой
     
     return False
+
+def notify_telegram_bg(msg: str) -> None:
+    """Send Telegram message in the background."""
+    asyncio.create_task(notify_telegram(msg))
