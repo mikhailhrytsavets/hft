@@ -64,15 +64,15 @@ def test_multiple_tp1_pnl_accumulates(monkeypatch):
         calls += 1
         if calls == 1:
             return {"result": {"list": [
-                {"id": "3", "closedPnl": "1.0", "cumEntryValue": "100"},
-                {"id": "2", "closedPnl": "0.5", "cumEntryValue": "100"},
-                {"id": "1", "closedPnl": "0", "cumEntryValue": "100"},
+                {"execId": "3", "closedPnl": "1.0", "cumEntryValue": "100"},
+                {"execId": "2", "closedPnl": "0.5", "cumEntryValue": "100"},
+                {"execId": "1", "closedPnl": "0", "cumEntryValue": "100"},
             ]}}
         elif calls == 2:
             return {"result": {"list": [
-                {"id": "4", "closedPnl": "0.3", "cumEntryValue": "100"},
-                {"id": "3", "closedPnl": "1.0", "cumEntryValue": "100"},
-                {"id": "2", "closedPnl": "0.5", "cumEntryValue": "100"},
+                {"execId": "4", "closedPnl": "0.3", "cumEntryValue": "100"},
+                {"execId": "3", "closedPnl": "1.0", "cumEntryValue": "100"},
+                {"execId": "2", "closedPnl": "0.5", "cumEntryValue": "100"},
             ]}}
         return {"result": {"list": []}}
 
@@ -140,11 +140,11 @@ def test_fetch_closed_pnl_waits_for_new_entry(monkeypatch):
         calls += 1
         if calls == 1:
             return {"result": {"list": [
-                {"id": "1", "closedPnl": "0.2", "cumEntryValue": "100"},
+                {"execId": "1", "closedPnl": "0.2", "cumEntryValue": "100"},
             ]}}
         return {"result": {"list": [
-            {"id": "2", "closedPnl": "0.3", "cumEntryValue": "100"},
-            {"id": "1", "closedPnl": "0.2", "cumEntryValue": "100"},
+            {"execId": "2", "closedPnl": "0.3", "cumEntryValue": "100"},
+            {"execId": "1", "closedPnl": "0.2", "cumEntryValue": "100"},
         ]}}
 
     engine.client.http.get_closed_pnl = fake_closed_pnl
