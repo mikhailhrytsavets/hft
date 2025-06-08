@@ -27,16 +27,16 @@ max_dca_levels            = 4
 dca_risk_multiplier       = 1.20
 
 # — SL / TP / Trailing —
-soft_sl_percent           = -10.0
-take_profit_percent       = 1.00
-tp1_percent               = 0.35
-tp1_close_ratio           = 0.35
-tp2_percent               = 0.65
-tp2_close_ratio           = 0.35
-trailing_distance_percent = 0.20
-trailing_step_percent     = 0.05
+soft_sl_percent           = -3.0
+take_profit_percent       = 1.0
+tp1_percent               = 3.0
+tp1_close_ratio           = 0.5
+tp2_percent               = 5.0
+tp2_close_ratio           = 0.5
+trailing_distance_percent = 0.5
+trailing_step_percent     = 0.2
 break_even_after_minutes  = 0
-min_profit_to_be          = 0.30
+min_profit_to_be          = 1.0
 
 # Hybrid strategy options
 strategy_mode           = "hybrid"
@@ -46,9 +46,9 @@ mm_refresh_seconds      = 10
 enable_mom_filter       = false
 momentum_period         = 5
 use_ml_scoring          = false
-use_atr_stop            = false
-atr_stop_multiplier     = 1.5
-hard_sl_percent         = 2.0
+use_atr_stop            = true
+atr_stop_multiplier     = 2.0
+hard_sl_percent         = 5.0
 enable_stat_arb         = true
 stat_arb_entry_z        = 1.5
 stat_arb_exit_z         = 0.5
