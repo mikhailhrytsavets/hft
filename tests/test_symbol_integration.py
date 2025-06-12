@@ -4,7 +4,7 @@ from legacy.symbol_engine import SymbolEngine
 from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
 from legacy.strategy.dca import SmartDCA
 from legacy.core.data import Bar
-from legacy.core import indicators
+from app import indicators
 
 
 def test_entry_dca_exit(monkeypatch):

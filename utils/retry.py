@@ -4,6 +4,7 @@ import requests
 import http.client
 import urllib3
 import asyncio
+import logging
 from pybit.exceptions import InvalidRequestError
 
 RETRYABLE = (
@@ -26,7 +27,7 @@ def retry_rest(max_tries: int = 3, backoff: float = 2.0):
                 except RETRYABLE as exc:
                     last_exc = exc
                     wait = backoff * attempt
-                    print(f"⚠️ {func.__name__}: {exc} → retry in {wait}s ({attempt}/{max_tries})")
+                    logging.warning("%s: %s → retry in %ss (%s/%s)", func.__name__, exc, wait, attempt, max_tries)
                     time.sleep(wait)
             raise RuntimeError(f"{func.__name__} failed after {max_tries} retries") from last_exc
         return inner
@@ -48,8 +49,13 @@ def async_retry_rest(max_tries: int = 3, backoff: float = 2.0):
                 except RETRYABLE as exc:
                     last_exc = exc
                     wait = backoff * attempt
-                    print(
-                        f"⚠️ {func.__name__}: {exc} → retry in {wait}s ({attempt}/{max_tries})"
+                    logging.warning(
+                        "%s: %s → retry in %ss (%s/%s)",
+                        func.__name__,
+                        exc,
+                        wait,
+                        attempt,
+                        max_tries,
                     )
                     await asyncio.sleep(wait)
             raise RuntimeError(

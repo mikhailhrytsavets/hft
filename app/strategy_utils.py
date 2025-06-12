@@ -10,7 +10,7 @@ from app.config import settings
 from app.utils import snap_qty
 from app.risk import RiskManager
 from app.notifier import notify_telegram
-from legacy.core.indicators import compute_adx
+from app.indicators import compute_adx
 
 
 # ---------------------------------------------------------------------------
@@ -135,8 +135,12 @@ async def maybe_hedge(
     )
 
     engine.hedge_cycle_count += 1
-    RiskManager.active_positions.add(engine.symbol)
-    RiskManager.position_volumes[engine.symbol] = hedge_qty * price
+    if engine.manager:
+        engine.manager.active_positions.add(engine.symbol)
+        engine.manager.position_volumes[engine.symbol] = hedge_qty * price
+    else:
+        engine.risk.active_positions.add(engine.symbol)
+        engine.risk.position_volumes[engine.symbol] = hedge_qty * price
     engine.risk.reset_trade()
     engine.risk.position.side = side_flip
     engine.risk.position.qty = hedge_qty
@@ -164,9 +168,8 @@ async def handle_dca(engine, price: float, reason: str | None = None) -> None:
         print(f"[{engine.symbol}] DCA qty calc failed: {exc}")
         return
     await engine.client.create_market_order(engine.risk.position.side, qty)
-    RiskManager.position_volumes[engine.symbol] = (
-        RiskManager.position_volumes.get(engine.symbol, 0.0) + qty * price
-    )
+    volumes = engine.manager.position_volumes if engine.manager else engine.risk.position_volumes
+    volumes[engine.symbol] = volumes.get(engine.symbol, 0.0) + qty * price
 
     delta_pct = (
         (price - engine.risk.position.avg_price)

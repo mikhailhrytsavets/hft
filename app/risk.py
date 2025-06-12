@@ -2,13 +2,20 @@ from collections import deque
 from datetime import datetime, timedelta, date
 from pathlib import Path
 import time
+import logging
 from app.config import settings, SymbolParams
 from app.notifier import notify_telegram
-from legacy.core.indicators import compute_rsi, compute_adx_info, compute_adx
-from legacy.core.indicators import atr as compute_atr
+from app.indicators import (
+    compute_rsi,
+    compute_adx_info,
+    compute_adx,
+    atr as compute_atr,
+)
 from app import exit as exit_logic
 
 from app.exchange import BybitClient
+
+logger = logging.getLogger(__name__)
 
 class Position:
     def __init__(self):
@@ -27,13 +34,18 @@ class Position:
 
 class RiskManager:
     EQUITY_FILE = Path(__file__).parent.parent / "start_equity.txt"
-    active_positions: set[str] = set()
-    position_volumes: dict[str, float] = {}
-    today_trades: int = 0
-    today_date: date = date.today()
 
-    def __init__(self, symbol: str):
+    def __init__(self, symbol: str, manager=None):
         self.symbol = symbol
+        self.manager = manager
+        if manager is not None:
+            self.active_positions = manager.active_positions
+            self.position_volumes = manager.position_volumes
+        else:
+            self.active_positions: set[str] = set()
+            self.position_volumes: dict[str, float] = {}
+        self.today_trades: int = 0
+        self.today_date: date = date.today()
         self.position = Position()
         self.start_equity = None
         self.start_date: date | None = None
@@ -73,14 +85,14 @@ class RiskManager:
                     self.start_equity = float(raw)
                     self.start_date = None
         except Exception as exc:  # pragma: no cover - file i/o
-            print(f"⚠️ Equity load failed: {exc}")
+            logger.warning("Equity load failed: %s", exc)
 
     def _save_equity(self) -> None:
         try:
             ts = (self.start_date or date.today()).isoformat()
             self.EQUITY_FILE.write_text(f"{self.start_equity},{ts}")
         except Exception as exc:  # pragma: no cover - file i/o
-            print(f"⚠️ Equity save failed: {exc}")
+            logger.warning("Equity save failed: %s", exc)
 
     def reset_trade(self) -> None:
         self.tp1_done = False
@@ -196,7 +208,7 @@ class RiskManager:
                         "UP" if close_price > open_price else "DOWN" if close_price < open_price else None
                     )
             except Exception as exc:
-                print(f"[{self.symbol}] ⚠️ HTF fetch error: {exc}")
+                logger.warning("[%s] HTF fetch error: %s", self.symbol, exc)
             if self.last_htf_trend:
                 if self.position.side == "Buy" and self.last_htf_trend == "DOWN":
                     return False

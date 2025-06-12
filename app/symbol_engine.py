@@ -1,5 +1,6 @@
 import asyncio
 import time
+import logging
 from datetime import datetime
 from typing import Optional
 from collections import deque, defaultdict
@@ -26,6 +27,8 @@ from app.strategy_utils import (
     maybe_hedge,
 )
 
+logger = logging.getLogger(__name__)
+
 __all__ = ["SymbolEngine"]
 
 # ---------------------------------------------------------------------------
@@ -45,10 +48,10 @@ class _PrecisionCache:
             info = http.get_instruments_info(category="linear", symbol=symbol)
             step = float(info["result"]["list"][0]["lotSizeFilter"]["qtyStep"])
         except Exception as exc:  # pragma: no cover – network call
-            print(f"[{symbol}] ⚠️ qtyStep fetch failed: {exc}")
+            logger.warning("[%s] qtyStep fetch failed: %s", symbol, exc)
             step = 1.0
         self._cache[symbol] = step
-        print(f"[{symbol}] ℹ️ qtyStep cached = {step}")
+        logger.info("[%s] qtyStep cached = %s", symbol, step)
         return step
 
 
@@ -90,7 +93,7 @@ async def _fetch_closed_pnl(self, retries: int = 10) -> Optional[tuple[float, fl
             pnl_pct = net / entry * 100.0 if entry else 0.0
             return net, pnl_pct
         except Exception as exc:
-            print(f"[{self.symbol}] ⚠️ closed_pnl fetch error: {exc}")
+            logger.warning("[%s] closed_pnl fetch error: %s", self.symbol, exc)
             await asyncio.sleep(1)
     return None
 
@@ -106,8 +109,9 @@ class SymbolEngine:
 
     SPREAD_Z_MAX = 3.0
 
-    def __init__(self, symbol: str) -> None:
+    def __init__(self, symbol: str, manager=None) -> None:
         self.symbol = symbol
+        self.manager = manager
         lev = min(settings.trading.leverage, 50)
         self.client = BybitClient(
             symbol=symbol,
@@ -129,15 +133,15 @@ class SymbolEngine:
                 idxs = {p.get("positionIdx") for p in positions}
                 hedge = len(positions) > 1 or any(i in (1, 2) for i in idxs)
                 if not hedge:
-                    print(f"[{self.symbol}] ⚠️ Hedge mode appears disabled")
+                    logger.warning("[%s] Hedge mode appears disabled", self.symbol)
             except Exception as exc:  # pragma: no cover – network call
-                print(f"[{self.symbol}] ⚠️ Hedge mode check failed: {exc}")
+                logger.warning("[%s] Hedge mode check failed: %s", self.symbol, exc)
 
         # State / utils -------------------------------------------------------
         self.precision = _PrecisionCache()
         self.signal     = SignalEngine(z_threshold=1.2)
         self.market     = MarketFeatures()
-        self.risk       = RiskManager(symbol)
+        self.risk       = RiskManager(symbol, manager)
         self.current_sl_price: float | None = None
         self.vol_history = deque(maxlen=50)
         self.volume_window = deque(maxlen=20)
@@ -171,8 +175,7 @@ class SymbolEngine:
         self.sl_link_id = f"{symbol}-sl"
         self.entry_order_id: Optional[str] = None
 
-        # Streaming will be attached by SymbolEngineManager
-        self.manager = None  # set by SymbolEngineManager
+        # Streaming will be attached by SymbolEngineManager if not provided
 
         # Restore running state (open position / TP) -----------------------
         self._restore_position()
@@ -221,9 +224,15 @@ class SymbolEngine:
                 self.risk.position.qty        = size
                 self.risk.position.avg_price  = float(pos["avgPrice"])
                 self.risk.position.open_time  = datetime.utcnow()
-                print(f"[{self.symbol}] 🧠 Restored active position {size} {pos['side']} @ {pos['avgPrice']}")
+                logger.info(
+                    "[%s] Restored active position %s %s @ %s",
+                    self.symbol,
+                    size,
+                    pos['side'],
+                    pos['avgPrice'],
+                )
         except Exception as exc:
-            print(f"[{self.symbol}] ⚠️ Position restore failed: {exc}")
+            logger.warning("[%s] Position restore failed: %s", self.symbol, exc)
 
         # restore open SL/TP orders
         try:
@@ -570,9 +579,10 @@ class SymbolEngine:
     ) -> None:
         side = "Buy" if direction == "LONG" else "Sell"
         try:
+            active = self.manager.active_positions if self.manager else self.risk.active_positions
             if (
                 settings.risk.max_open_positions
-                and len(RiskManager.active_positions) >= settings.risk.max_open_positions
+                and len(active) >= settings.risk.max_open_positions
             ):
                 print(f"[{self.symbol}] 🚫 Max open positions reached")
                 return
@@ -588,7 +598,8 @@ class SymbolEngine:
 
             qty = await self.safe_qty_calc(price, settings.trading.initial_risk_percent)
             volume = qty * price
-            total_vol = sum(RiskManager.position_volumes.values())
+            volumes = self.manager.position_volumes if self.manager else self.risk.position_volumes
+            total_vol = sum(volumes.values())
             if (
                 settings.risk.max_total_volume
                 and total_vol + volume > settings.risk.max_total_volume
@@ -615,8 +626,12 @@ class SymbolEngine:
         print(f"[{self.symbol}] {log_msg}")
         notify_telegram_bg(log_msg)
 
-        RiskManager.active_positions.add(self.symbol)
-        RiskManager.position_volumes[self.symbol] = volume
+        if self.manager:
+            self.manager.active_positions.add(self.symbol)
+            self.manager.position_volumes[self.symbol] = volume
+        else:
+            self.risk.active_positions.add(self.symbol)
+            self.risk.position_volumes[self.symbol] = volume
 
         self.risk.position.side = side
         self.risk.position.qty = qty
@@ -814,8 +829,12 @@ class SymbolEngine:
             await db.log(side_close, qty_close, mkt_price, self.risk.position.avg_price, net_usdt)
         self.risk.position.reset()
         self.risk.reset_trade()
-        RiskManager.active_positions.discard(self.symbol)
-        RiskManager.position_volumes.pop(self.symbol, None)
+        if self.manager:
+            self.manager.active_positions.discard(self.symbol)
+            self.manager.position_volumes.pop(self.symbol, None)
+        else:
+            self.risk.active_positions.discard(self.symbol)
+            self.risk.position_volumes.pop(self.symbol, None)
         await self._cancel_all_active_orders()
         self.sl_order_id = None
         self.tp_order_id = None
