@@ -1,7 +1,7 @@
 import time
 
 import pytest
-from legacy.core.indicators_vectorized import atr, compute_adx, compute_rsi
+from core.indicators_vectorized import atr, compute_adx, compute_rsi
 
 np = pytest.importorskip("numpy")
 

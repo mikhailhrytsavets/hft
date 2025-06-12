@@ -1,12 +1,13 @@
+# Refactored on 2024-06-06 to remove legacy coupling
 from __future__ import annotations
 
 from pathlib import Path
 from collections import deque
 
-from legacy.core.data import Bar
-from legacy.core import indicators
-from legacy.strategy.bounce_entry import BounceEntry
-from legacy.strategy.manager import PositionManager
+from core.market_data import Bar
+from app import indicators
+from strategy.entry import BounceEntry
+from strategy.manager import PositionManager
 
 
 class BacktestEngine:

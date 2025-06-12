@@ -1,9 +1,9 @@
 import asyncio
 
-from legacy.symbol_engine import SymbolEngine
-from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
-from legacy.strategy.dca import SmartDCA
-from legacy.core.data import Bar
+from app.simple_engine import SymbolEngine
+from strategy.entry import BounceEntry, Signal as EntrySignal
+from strategy.dca import SmartDCA
+from core.market_data import Bar
 from app import indicators
 
 
@@ -13,7 +13,7 @@ def test_entry_dca_exit(monkeypatch):
     # patch indicators for deterministic behaviour
     monkeypatch.setattr(indicators, "atr", lambda *a, **k: 1.0)
 
-    signals = [EntrySignal.LONG, EntrySignal.NO, EntrySignal.NO]
+    signals = [EntrySignal.LONG, EntrySignal.FLAT, EntrySignal.FLAT]
 
     def fake_sig(*args, **kwargs):
         return signals.pop(0)

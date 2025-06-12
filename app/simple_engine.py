@@ -1,14 +1,16 @@
-"""Simplified symbol engine used for tests and examples."""
+# Refactored on 2024-06-06 to remove legacy coupling
+from __future__ import annotations
 
 from collections import deque
 from typing import Deque
 
-from legacy.core.data import OHLCCollector, Bar
-from legacy.market_features import MarketFeatures
+from core.market_data import OHLCCollector, Bar
 from app import indicators
-from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
-from legacy.strategy.dca import SmartDCA
-from legacy.strategy.manager import PositionManager
+from strategy.entry import BounceEntry, Signal
+from strategy.dca import SmartDCA
+from strategy.manager import PositionManager
+from app.market_features import MarketFeatures
+
 
 class SymbolEngine:
     def __init__(self, symbol: str) -> None:
@@ -43,8 +45,8 @@ class SymbolEngine:
             adx_v,
         )
 
-        if self.pm.state.qty == 0 and sig in (EntrySignal.LONG, EntrySignal.SHORT):
-            side = "LONG" if sig is EntrySignal.LONG else "SHORT"
+        if self.pm.state.qty == 0 and sig in (Signal.LONG, Signal.SHORT):
+            side = "LONG" if sig is Signal.LONG else "SHORT"
             self.pm.open(side=side, qty=1, entry=bar.close, atr=atr_v)
             self.dca_fills = 0
         elif self.pm.state.qty > 0:
@@ -71,4 +73,3 @@ class SymbolEngine:
             self.pm.on_tick(bar.close)
             if self.pm.state.qty == 0:
                 self.dca_fills = 0
-

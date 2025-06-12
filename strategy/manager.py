@@ -1,6 +1,5 @@
+# Refactored on 2024-06-06 to remove legacy coupling
 from __future__ import annotations
-
-"""Simple position management for backtesting."""
 
 from dataclasses import dataclass
 
@@ -14,8 +13,6 @@ class PositionState:
 
 
 class PositionManager:
-    """Handle partial take profits and trailing stop logic."""
-
     def __init__(
         self,
         tp1_ratio: float = 0.4,
@@ -41,9 +38,7 @@ class PositionManager:
         self.best_price: float | None = None
         self.trail_price: float | None = None
 
-    # ------------------------------------------------------------------
     def open(self, side: str, qty: float, entry: float, atr: float) -> None:
-        """Open a new position and set TP/SL levels."""
         self.state.side = side
         self.state.qty = qty
         self.initial_qty = qty
@@ -62,9 +57,7 @@ class PositionManager:
         self.best_price = entry
         self.trail_price = entry
 
-    # ------------------------------------------------------------------
     def add(self, qty: float, price: float) -> None:
-        """Increase position size and recalc average entry price."""
         if self.state.side is None or qty <= 0:
             return
         total = self.state.entry * self.state.qty + price * qty
@@ -80,21 +73,16 @@ class PositionManager:
             self.tp1 = self.state.entry - self.tp1_atr * self.state.atr
             self.tp2 = self.state.entry - self.tp2_atr * self.state.atr
 
-    # ------------------------------------------------------------------
     def _close_fraction(self, frac: float) -> float:
         qty_close = min(self.state.qty, self.initial_qty * frac)
         self.state.qty -= qty_close
         self.closed_qty += qty_close
         return qty_close
 
-    # ------------------------------------------------------------------
     def on_tick(self, price: float) -> str | None:
-        """Update position state based on ``price``."""
         if self.state.side is None or self.state.qty <= 0:
             return None
         side = self.state.side
-
-        # stop-loss -----------------------------------------------------
         if side == "LONG" and self.sl is not None and price <= self.sl:
             self._close_fraction(1.0)
             self.state.side = None
@@ -103,8 +91,6 @@ class PositionManager:
             self._close_fraction(1.0)
             self.state.side = None
             return "SL"
-
-        # TP1 -----------------------------------------------------------
         if not self.trailing_started:
             if side == "LONG" and self.tp1 is not None and price >= self.tp1:
                 self._close_fraction(self.tp1_ratio)
@@ -118,8 +104,6 @@ class PositionManager:
                 self.best_price = price
                 self.trail_price = self.state.entry
                 return "TP1"
-
-        # TP2 -----------------------------------------------------------
         if self.trailing_started and self.state.qty > 0:
             if side == "LONG" and self.tp2 is not None and price >= self.tp2:
                 self._close_fraction(self.tp2_ratio)
@@ -129,8 +113,6 @@ class PositionManager:
                 self._close_fraction(self.tp2_ratio)
                 self.best_price = price
                 return "TP2"
-
-        # trailing ------------------------------------------------------
         if self.trailing_started and self.state.qty > 0:
             if side == "LONG":
                 if price > (self.best_price or price):
@@ -140,7 +122,7 @@ class PositionManager:
                     self._close_fraction(1.0)
                     self.state.side = None
                     return "TRAIL"
-            else:  # SHORT
+            else:
                 if price < (self.best_price or price):
                     self.best_price = price
                     self.trail_price = price * (1 + self.trailing_pct / 100)
@@ -148,5 +130,4 @@ class PositionManager:
                     self._close_fraction(1.0)
                     self.state.side = None
                     return "TRAIL"
-
         return None

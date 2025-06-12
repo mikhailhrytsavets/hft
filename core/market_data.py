@@ -1,16 +1,21 @@
+# Refactored on 2024-06-06 to remove legacy coupling
+from __future__ import annotations
+
+from typing import Awaitable, Callable, Deque, List, Optional, AsyncIterator
 import asyncio
-from collections import namedtuple
-from typing import Awaitable, Callable, List
+from collections import deque, namedtuple
+
 
 Bar = namedtuple("Bar", "open high low close volume start end")
 
+
 class OHLCCollector:
-    """Collect trades into fixed 5m OHLCV bars."""
+    """Collect trades into fixed interval OHLCV bars."""
 
     def __init__(self, interval: int = 300) -> None:
         self.interval = interval
         self._callbacks: List[Callable[[Bar], Awaitable[None]]] = []
-        self._bar: Bar | None = None
+        self._bar: Optional[Bar] = None
 
     def subscribe(self, cb: Callable[[Bar], Awaitable[None]]) -> None:
         self._callbacks.append(cb)
@@ -20,39 +25,27 @@ class OHLCCollector:
             asyncio.create_task(cb(bar))
 
     @property
-    def last_bar(self) -> Bar | None:
+    def last_bar(self) -> Optional[Bar]:
         return self._bar
 
     def on_trade(self, price: float, qty: float, ts: int) -> None:
-        """Feed a trade tick (timestamp in seconds)."""
         bucket = ts - ts % self.interval
         if self._bar is None:
             self._bar = Bar(price, price, price, price, qty, bucket, bucket + self.interval)
             return
         if bucket != self._bar.start:
-            bar = self._bar._replace(end=self._bar.start + self.interval)
+            bar = self._bar
             self._emit(bar)
             self._bar = Bar(price, price, price, price, qty, bucket, bucket + self.interval)
             return
-        o, h, low, c, v, s, e = self._bar
+        o, h, l, c, v, s, e = self._bar
         h = max(h, price)
-        low = min(low, price)
+        l = min(l, price)
         c = price
         v += qty
-        self._bar = Bar(o, h, low, c, v, s, e)
+        self._bar = Bar(o, h, l, c, v, s, e)
 
 
-"""
->>> out = []
->>> async def cb(bar):
-...     out.append(bar)
->>> c = OHLCCollector()
->>> c.subscribe(cb)
->>> for p,q,t in [(10,1,0),(12,1,60),(9,2,299),(11,1,300)]:
-...     c.on_trade(p,q,t)
->>> import asyncio; asyncio.get_event_loop().run_until_complete(asyncio.sleep(0))
->>> len(out)
-1
->>> out[0]
-Bar(open=10, high=12, low=9, close=9, volume=4, start=0, end=300)
-"""
+async def data_stream(symbol: str) -> AsyncIterator[Bar]:
+    """Placeholder async generator for live market data."""
+    raise NotImplementedError("WebSocket streaming not implemented")

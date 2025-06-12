@@ -1,5 +1,5 @@
 import asyncio
-from legacy.symbol_engine import SymbolEngine
+from app.simple_engine import SymbolEngine
 from tests.conftest import feed_trades
 
 

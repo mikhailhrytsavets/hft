@@ -1,3 +1,4 @@
+# Refactored on 2024-06-06 to remove legacy coupling
 from collections import deque
 from datetime import datetime, timedelta, date
 from pathlib import Path
@@ -17,20 +18,26 @@ from app.exchange import BybitClient
 
 logger = logging.getLogger(__name__)
 
-class Position:
-    def __init__(self):
-        self.reset()
+from dataclasses import dataclass
 
-    def reset(self):
-        self.side = None
-        self.qty = 0
-        self.avg_price = 0
-        self.open_time = None
-        self.initial_qty = 0.0
-        self.realized_pnl = 0.0
-        self.today_trades = 0
-        self.today_date = date.today()
-        self.entry_value = 0.0
+
+@dataclass
+class OrderFill:
+    qty: float
+    price: float
+    side: str
+    pnl: float = 0.0
+
+
+
+@dataclass
+class Position:
+    side: str | None = None
+    qty: float = 0.0
+    avg_price: float = 0.0
+    open_time: datetime | None = None
+    realized_pnl: float = 0.0
+    dca_count: int = 0
 
 class RiskManager:
     EQUITY_FILE = Path(__file__).parent.parent / "start_equity.txt"
@@ -68,6 +75,16 @@ class RiskManager:
         self.last_htf_trend: str | None = None
         self._load_equity()
         self._last_atr_log: float = 0.0
+
+    def update_after_fill(self, fill: "OrderFill") -> None:
+        if fill.side == "Buy":
+            total = self.position.avg_price * self.position.qty + fill.price * fill.qty
+            self.position.qty += fill.qty
+            self.position.avg_price = total / self.position.qty
+        else:
+            self.position.qty -= fill.qty
+        self.position.realized_pnl += fill.pnl
+        self.position.dca_count += 1
 
     # ------------------------------------------------------------------
     def _load_equity(self) -> None:

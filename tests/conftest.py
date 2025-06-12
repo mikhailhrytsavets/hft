@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from legacy.core.data import Bar
+from core.market_data import Bar
 pybit = types.ModuleType("pybit")
 pybit.exceptions = types.SimpleNamespace(InvalidRequestError=Exception)
 sys.modules.setdefault("pybit", pybit)
