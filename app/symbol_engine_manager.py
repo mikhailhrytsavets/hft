@@ -15,6 +15,9 @@ class SymbolEngineManager:
         self.symbols = symbols
         self.tasks: dict[str, asyncio.Task] = {}
         self.engines: dict[str, SymbolEngine] = {}
+        self.active_positions: set[str] = set()
+        self.position_volumes: dict[str, float] = {}
+        self.stop_event = asyncio.Event()
         self.account = NS(equity_usd=0.0, open_positions=[])
         self.guard = RiskGuard(self.account)
         if settings.risk.max_open_positions:
@@ -29,11 +32,11 @@ class SymbolEngineManager:
             else SymbolEngine
         )
         engine = (
-            engine_cls(symbol, ref_symbol)
+            engine_cls(symbol, ref_symbol, manager=self)
             if engine_cls is HybridStrategyEngine
-            else engine_cls(symbol)
+            else engine_cls(symbol, manager=self)
         )
-        engine.manager = self
+        self.engines[symbol] = engine
         self.engines[symbol] = engine
         attempt = 0
         while True:
@@ -45,8 +48,11 @@ class SymbolEngineManager:
                 print(f"[{symbol}] ❌ Engine crashed: {exc} → restart in {wait}s")
                 await notify_telegram(f"❌ Engine {symbol} crashed: {exc}")
                 await asyncio.sleep(wait)
-                engine = engine_cls(symbol, ref_symbol) if engine_cls is HybridStrategyEngine else engine_cls(symbol)
-                engine.manager = self
+                engine = (
+                    engine_cls(symbol, ref_symbol, manager=self)
+                    if engine_cls is HybridStrategyEngine
+                    else engine_cls(symbol, manager=self)
+                )
                 self.engines[symbol] = engine
             else:
                 attempt = 0
@@ -72,10 +78,10 @@ class SymbolEngineManager:
 
         # shared WS connections ----------------------------------------
         self.tasks["orderbook"] = asyncio.create_task(
-            BybitClient.ws_multi(active, "orderbook.50", self._on_orderbook)
+            BybitClient.ws_multi(active, "orderbook.50", self._on_orderbook, self.stop_event)
         )
         self.tasks["trades"] = asyncio.create_task(
-            BybitClient.ws_multi(active, "publicTrade", self._on_trades)
+            BybitClient.ws_multi(active, "publicTrade", self._on_trades, self.stop_event)
         )
 
         self.tasks["cmd"] = asyncio.create_task(telegram_command_listener())
@@ -118,6 +124,12 @@ class SymbolEngineManager:
         engine = self.engines.get(symbol)
         if engine:
             engine._on_trades(data)
+
+    async def stop_all(self):
+        self.stop_event.set()
+        for task in self.tasks.values():
+            task.cancel()
+        await asyncio.gather(*self.tasks.values(), return_exceptions=True)
 
 async def run_multi_symbol_bot():
     symbols = settings.bybit.symbols

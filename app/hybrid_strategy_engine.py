@@ -19,8 +19,8 @@ from app.config import settings
 class HybridStrategyEngine(SymbolEngine):
     """SymbolEngine extended with market making and stat-arb logic."""
 
-    def __init__(self, symbol: str, ref_symbol: Optional[str] = None) -> None:
-        super().__init__(symbol)
+    def __init__(self, symbol: str, ref_symbol: Optional[str] = None, manager=None) -> None:
+        super().__init__(symbol, manager)
         self.ref_symbol = ref_symbol
         self.mm_active: bool = False
         self.stat_arb_active: bool = False
@@ -45,7 +45,7 @@ class HybridStrategyEngine(SymbolEngine):
                 channel_type=self.client.channel_type,
                 place_orders=self.client.place_orders,
             )
-            self.ref_risk = RiskManager(ref_symbol)
+            self.ref_risk = RiskManager(ref_symbol, manager)
         else:
             self.ref_client = None
             self.ref_risk = None

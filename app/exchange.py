@@ -243,7 +243,7 @@ class BybitClient:
         )
         return data["result"]["list"][0] if data.get("result", {}).get("list") else {}
 
-    def subscribe_orderbook(self, handler):
+    def subscribe_orderbook(self, handler, stop_event: asyncio.Event | None = None):
         """
         Подписка на стакан через общий WS‑хелпер (без threading).
         `handler(data)` — старый колбэк, где data = orderbook snapshot/update.
@@ -253,9 +253,9 @@ class BybitClient:
         def ob_handler(sym: str, data):
             handler(data)
 
-        loop.create_task(BybitClient.ws_multi([self.symbol], "orderbook.50", ob_handler))
+        loop.create_task(BybitClient.ws_multi([self.symbol], "orderbook.50", ob_handler, stop_event))
 
-    def subscribe_trades(self, handler):
+    def subscribe_trades(self, handler, stop_event: asyncio.Event | None = None):
         """
         Подписка на трейды через общий WS‑хелпер (без threading).
         `handler(data)` — старый колбэк, где data = список трейдов.
@@ -265,23 +265,23 @@ class BybitClient:
         def trades_handler(sym: str, data):
             handler(data)
 
-        loop.create_task(BybitClient.ws_multi([self.symbol], "publicTrade", trades_handler))
+        loop.create_task(BybitClient.ws_multi([self.symbol], "publicTrade", trades_handler, stop_event))
 
     # ---------- shared WebSocket ----------
     @staticmethod
-    async def ws_multi(symbols: list[str], channel: str, handler):
+    async def ws_multi(symbols: list[str], channel: str, handler, stop_event: asyncio.Event | None = None):
         """Subscribe to ``channel`` for multiple symbols with auto-reconnect."""
         url = "wss://stream.bybit.com/v5/public/linear"
         topics = [f"{channel}.{s}" for s in symbols]
         attempt = 0
-        while True:
+        while not (stop_event and stop_event.is_set()):
             try:
                 async with websockets.connect(
                     url, ping_interval=20, close_timeout=10, max_queue=None
                 ) as ws:
                     await ws.send(json.dumps({"op": "subscribe", "args": topics}))
                     attempt = 0
-                    while True:
+                    while not (stop_event and stop_event.is_set()):
                         msg = await ws.recv()
                         data = json.loads(msg)
                         if "topic" not in data or "data" not in data:

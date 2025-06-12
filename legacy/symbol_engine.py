@@ -5,7 +5,7 @@ from typing import Deque
 
 from legacy.core.data import OHLCCollector, Bar
 from legacy.market_features import MarketFeatures
-from legacy.core import indicators
+from app import indicators
 from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
 from legacy.strategy.dca import SmartDCA
 from legacy.strategy.manager import PositionManager

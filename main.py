@@ -1,6 +1,7 @@
 import asyncio
 from app.notifier import notify_telegram, close_session
 from app.symbol_engine_manager import run_multi_symbol_bot
+import app.logging_setup  # noqa: F401
 
 
 async def main() -> None:
