@@ -1,4 +1,4 @@
-from legacy.strategy.manager import PositionManager
+from strategy.manager import PositionManager
 import pytest
 
 

@@ -1,29 +1,19 @@
-"""
-Vectorised implementations of RSI, ATR and ADX based **purely on NumPy**.
-No Python `for`-loops ⇒ > 20× faster on large arrays.
-
-All three functions keep *exactly* the same public signature / return-type
-as typical vectorised libraries (1-D ``np.ndarray`` with ``np.nan`` padding
-for the warm-up zone).
-"""
-
+# Refactored on 2024-06-06 to remove legacy coupling
 from __future__ import annotations
 
-try:  # optional NumPy dependency
+try:
     import numpy as np
-except Exception:  # pragma: no cover - when numpy missing
+except Exception:  # pragma: no cover
     np = None  # type: ignore
 
 __all__ = ["compute_rsi", "atr", "compute_adx"]
 
 
-# ────────────────────────────── helpers ──────────────────────────────
-
 def _rolling_sum(arr: np.ndarray, window: int) -> np.ndarray:
-    """Return rolling sum using cumulative sums with ``np.nan`` padding."""
+    if np is None:
+        raise ImportError("NumPy is required for _rolling_sum")
     if window <= 0:
         raise ValueError("window must be > 0")
-
     arr = np.asarray(arr, dtype=float)
     csum = np.cumsum(arr, dtype=float)
     csum = np.concatenate(([0.0], csum))
@@ -31,10 +21,7 @@ def _rolling_sum(arr: np.ndarray, window: int) -> np.ndarray:
     return np.concatenate((np.full(window, np.nan), out))
 
 
-# ──────────────────────────────  RSI  ────────────────────────────────
-
 def compute_rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:  # noqa: N802
-    """Vectorised Relative Strength Index (SMA version)."""
     if np is None:
         raise ImportError("NumPy is required for compute_rsi")
     prices = np.asarray(prices, dtype=float)
@@ -58,10 +45,7 @@ def compute_rsi(prices: np.ndarray, period: int = 14) -> np.ndarray:  # noqa: N8
     return rsi
 
 
-# ─────────────────────────────── ATR ─────────────────────────────────
-
 def atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> np.ndarray:  # noqa: N802
-    """Average True Range (vectorised)."""
     if np is None:
         raise ImportError("NumPy is required for atr")
     high = np.asarray(high, dtype=float)
@@ -86,10 +70,7 @@ def atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) 
     return atr_vals
 
 
-# ─────────────────────────────── ADX ─────────────────────────────────
-
 def compute_adx(high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int = 14) -> np.ndarray:  # noqa: N802
-    """Average Directional Index (SMA style)."""
     if np is None:
         raise ImportError("NumPy is required for compute_adx")
     high = np.asarray(high, dtype=float)

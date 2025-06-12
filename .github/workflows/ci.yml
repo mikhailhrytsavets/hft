@@ -9,8 +9,12 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
-      - run: pip install pytest ruff
+      - run: pip install pytest flake8 black mypy
       - name: Lint
-        run: ruff check --fix app legacy tests scripts
+        run: flake8
+      - name: Format
+        run: black --check .
+      - name: Type check
+        run: mypy .
       - name: Run tests
-        run: pytest -q --cov
+        run: pytest --cov

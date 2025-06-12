@@ -1,3 +1,4 @@
+# Refactored on 2024-06-06 to remove legacy coupling
 
 class CandleAggregator:
     """Aggregate tick prices into fixed interval candles."""
@@ -38,7 +39,7 @@ except Exception:  # pragma: no cover - fallback when numpy missing
     np = None
 
 try:
-    from legacy.core.indicators_vectorized import (
+    from core.indicators_vectorized import (
         compute_rsi as _vec_compute_rsi,
         atr as _vec_atr,
         compute_adx as _vec_compute_adx,

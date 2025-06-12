@@ -1,3 +1,4 @@
+# Refactored on 2024-06-06 to remove legacy coupling
 import asyncio
 import time
 import logging
@@ -7,7 +8,7 @@ from collections import deque, defaultdict
 import statistics
 
 from app.indicators import CandleAggregator
-from legacy.core.data import OHLCCollector, Bar
+from core.market_data import OHLCCollector, Bar
 
 from pybit.exceptions import InvalidRequestError
 from app.config import settings
@@ -17,7 +18,7 @@ from app.exchange import BybitClient
 from app.market_features import MarketFeatures
 from app.notifier import notify_telegram, notify_telegram_bg  # noqa: F401
 from app.risk import RiskManager
-from legacy.strategy.bounce_entry import BounceEntry, EntrySignal
+from strategy.entry import BounceEntry, Signal as EntrySignal
 from app.signal_engine import SignalEngine
 from app.utils import snap_qty
 from app.strategy_utils import (
