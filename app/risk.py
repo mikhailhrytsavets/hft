@@ -39,6 +39,15 @@ class Position:
     realized_pnl: float = 0.0
     dca_count: int = 0
 
+    def reset(self) -> None:
+        """Clear all position information."""
+        self.side = None
+        self.qty = 0.0
+        self.avg_price = 0.0
+        self.open_time = None
+        self.realized_pnl = 0.0
+        self.dca_count = 0
+
 class RiskManager:
     EQUITY_FILE = Path(__file__).parent.parent / "start_equity.txt"
 
